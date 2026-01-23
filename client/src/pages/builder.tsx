@@ -43,6 +43,8 @@ import {
 } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { useAuth } from "@/hooks/use-auth";
+import { isUnauthorizedError } from "@/lib/auth-utils";
 
 export default function Builder() {
   const [location] = useLocation();
@@ -109,7 +111,21 @@ export default function Builder() {
     });
   };
 
+  const { isAuthenticated } = useAuth();
+
   const handleSave = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to save agents to your library",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/api/login";
+      }, 1000);
+      return;
+    }
+
     const agentToSave = builderState.currentAgent;
     if (!agentToSave || !agentToSave.name) {
       toast({
@@ -144,7 +160,18 @@ export default function Builder() {
         title: "Agent saved!",
         description: "Your agent has been saved to your library",
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Session expired",
+          description: "Please sign in again",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
       toast({
         title: "Error",
         description: "Failed to save agent. Please try again.",
