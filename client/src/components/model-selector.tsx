@@ -46,6 +46,8 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<"checking" | "available" | "unavailable">("checking");
+  const [customModelId, setCustomModelId] = useState("");
+  const [isCustomModel, setIsCustomModel] = useState(false);
 
   useEffect(() => {
     checkOllamaStatus();
@@ -83,9 +85,23 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
   };
 
   const handleModelSelect = (modelId: string) => {
+    setIsCustomModel(false);
     selectModel(modelId);
     if (selectedProviderId) {
       onSelect?.(selectedProviderId, modelId);
+    }
+  };
+
+  const handleCustomModelSelect = () => {
+    setIsCustomModel(true);
+  };
+
+  const handleCustomModelSave = () => {
+    if (customModelId.trim()) {
+      selectModel(customModelId.trim());
+      if (selectedProviderId) {
+        onSelect?.(selectedProviderId, customModelId.trim());
+      }
     }
   };
 
@@ -280,7 +296,13 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
         </Select>
 
         {selectedProvider && (
-          <Select value={selectedModelId || ""} onValueChange={handleModelSelect}>
+          <Select value={selectedModelId || ""} onValueChange={(value) => {
+            if (value === "__custom__") {
+              setIsCustomModel(true);
+            } else {
+              handleModelSelect(value);
+            }
+          }}>
             <SelectTrigger className="w-[160px]" data-testid="select-model">
               <SelectValue placeholder="Model" />
             </SelectTrigger>
@@ -290,8 +312,34 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
                   {model.name}
                 </SelectItem>
               ))}
+              <SelectItem value="__custom__">
+                <div className="flex items-center gap-1">
+                  <Plus className="w-3 h-3" />
+                  Custom Model
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
+        )}
+        
+        {isCustomModel && (
+          <div className="flex gap-2">
+            <Input
+              placeholder="Model ID"
+              value={customModelId}
+              onChange={(e) => setCustomModelId(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCustomModelSave()}
+              className="w-[140px] h-9"
+              data-testid="input-custom-model-compact"
+            />
+            <Button 
+              size="sm" 
+              onClick={handleCustomModelSave}
+              disabled={!customModelId.trim()}
+            >
+              Use
+            </Button>
+          </div>
         )}
 
         <Button
@@ -385,7 +433,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
               <Card
                 key={model.id}
                 className={`cursor-pointer transition-all hover-elevate ${
-                  selectedModelId === model.id ? "ring-2 ring-primary" : ""
+                  selectedModelId === model.id && !isCustomModel ? "ring-2 ring-primary" : ""
                 }`}
                 onClick={() => handleModelSelect(model.id)}
                 data-testid={`card-model-${model.id}`}
@@ -409,12 +457,56 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
                         : ""}
                     </div>
                   </div>
-                  {selectedModelId === model.id && (
+                  {selectedModelId === model.id && !isCustomModel && (
                     <Check className="w-4 h-4 text-primary" />
                   )}
                 </CardContent>
               </Card>
             ))}
+            
+            {/* Custom Model Option */}
+            <Card
+              className={`cursor-pointer transition-all hover-elevate ${
+                isCustomModel ? "ring-2 ring-primary" : ""
+              }`}
+              onClick={handleCustomModelSelect}
+              data-testid="card-model-custom"
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Plus className="w-4 h-4" />
+                  <span className="font-medium text-sm">Custom Model</span>
+                  <Badge variant="outline" className="text-xs">
+                    Any model ID
+                  </Badge>
+                </div>
+                {isCustomModel && (
+                  <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                    <Input
+                      placeholder="Enter model ID (e.g., gpt-4-custom)"
+                      value={customModelId}
+                      onChange={(e) => setCustomModelId(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleCustomModelSave()}
+                      className="flex-1 h-8 text-sm"
+                      data-testid="input-custom-model"
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={handleCustomModelSave}
+                      disabled={!customModelId.trim()}
+                      data-testid="button-save-custom-model"
+                    >
+                      Use
+                    </Button>
+                  </div>
+                )}
+                {!isCustomModel && (
+                  <div className="text-xs text-muted-foreground">
+                    Use any model ID not listed above
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
           </ScrollArea>
         </motion.div>
