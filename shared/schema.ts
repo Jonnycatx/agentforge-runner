@@ -124,6 +124,9 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     type: "anthropic",
     baseUrl: "https://api.anthropic.com/v1",
     models: [
+      { id: "claude-sonnet-4-5-20250514", name: "Claude Sonnet 4.5", contextLength: 200000, costPer1kTokens: 0.003 },
+      { id: "claude-opus-4-5-20250514", name: "Claude Opus 4.5", contextLength: 200000, costPer1kTokens: 0.015 },
+      { id: "claude-cowork-1-20250514", name: "Claude CoWork", contextLength: 200000, costPer1kTokens: 0.003 },
       { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", contextLength: 200000, costPer1kTokens: 0.003 },
       { id: "claude-opus-4-20250514", name: "Claude Opus 4", contextLength: 200000, costPer1kTokens: 0.015 },
       { id: "claude-3-7-sonnet-20250219", name: "Claude 3.7 Sonnet", contextLength: 200000, costPer1kTokens: 0.003 },
@@ -134,7 +137,6 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
       { id: "claude-3-sonnet-20240229", name: "Claude 3 Sonnet", contextLength: 200000, costPer1kTokens: 0.003 },
       { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku", contextLength: 200000, costPer1kTokens: 0.00025 },
       { id: "claude-2.1", name: "Claude 2.1", contextLength: 200000, costPer1kTokens: 0.008 },
-      { id: "claude-2.0", name: "Claude 2.0", contextLength: 100000, costPer1kTokens: 0.008 },
       { id: "claude-instant-1.2", name: "Claude Instant 1.2", contextLength: 100000, costPer1kTokens: 0.0008 },
     ],
   },
