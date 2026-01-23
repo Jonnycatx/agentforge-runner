@@ -21,7 +21,8 @@ AgentForge allows users to:
 
 ### Backend (server/)
 - **Framework**: Express.js
-- **Storage**: In-memory storage (MemStorage)
+- **Database**: PostgreSQL with Drizzle ORM
+- **Authentication**: Replit Auth (OIDC)
 - **API**: RESTful endpoints for agent CRUD operations
 
 ### Shared (shared/)
@@ -91,3 +92,11 @@ The app runs on port 5000 with both frontend and backend served together.
 - **Ollama Auto-Detection**: Automatically detects and connects to local Ollama instances
 - **Live/Demo Mode**: Test pane shows "Live Mode" when provider connected, "Demo Mode" otherwise
 - **Connection Testing**: Validates API keys before marking providers as connected
+
+### Authentication & Persistence (Latest)
+- **Replit Auth**: Users can sign in with Google, GitHub, X, Apple, or email/password via Replit's OIDC provider
+- **PostgreSQL Database**: Agents are now stored in PostgreSQL with user ownership
+- **User Accounts**: Header shows login/logout button and user avatar when authenticated
+- **Agent Ownership**: Created agents are associated with the user's account
+- **Cross-Device Sync**: Agents are stored server-side, accessible from any device when logged in
+- **Authorization**: Only owners can update/delete their agents; public agents can be viewed by anyone

@@ -45,13 +45,22 @@ export async function registerRoutes(
     }
   });
 
-  // Get single agent by ID
-  app.get("/api/agents/:id", async (req, res) => {
+  // Get single agent by ID (public agents or own private agents)
+  app.get("/api/agents/:id", async (req: any, res) => {
     try {
       const agent = await storage.getAgent(req.params.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
+      
+      // If agent is private (has userId), only owner can view
+      if (agent.userId && !agent.isPublic) {
+        const userId = req.user?.claims?.sub;
+        if (!userId || agent.userId !== userId) {
+          return res.status(404).json({ error: "Agent not found" });
+        }
+      }
+      
       res.json(agent);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch agent" });
@@ -93,15 +102,16 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Agent not found" });
       }
       
-      // Check ownership
-      if (existingAgent.userId && existingAgent.userId !== userId) {
+      // Only owner can update their agents
+      if (existingAgent.userId !== userId) {
         return res.status(403).json({ error: "Not authorized to update this agent" });
       }
 
       const updateSchema = agentConfigSchema.partial().omit({ 
         id: true, 
         userId: true,
-        createdAt: true 
+        createdAt: true,
+        updatedAt: true
       });
       
       const validatedData = updateSchema.parse(req.body);
@@ -129,8 +139,8 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Agent not found" });
       }
       
-      // Check ownership
-      if (existingAgent.userId && existingAgent.userId !== userId) {
+      // Only owner can delete their agents
+      if (existingAgent.userId !== userId) {
         return res.status(403).json({ error: "Not authorized to delete this agent" });
       }
 
