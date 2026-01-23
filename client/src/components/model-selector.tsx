@@ -113,32 +113,69 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
         return { success: true };
       }
 
+      if (!apiKey || apiKey.trim().length === 0) {
+        return { success: false, error: "API key is required" };
+      }
+
       if (provider.type === "openai") {
-        const response = await fetch("https://api.openai.com/v1/models", {
-          headers: { Authorization: `Bearer ${apiKey}` },
-        });
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          return { success: false, error: data.error?.message || "Invalid API key" };
+        if (baseUrl) {
+          return { success: true, error: "custom_endpoint" };
         }
-        return { success: true };
+        try {
+          const response = await fetch("https://api.openai.com/v1/models", {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(5000),
+          });
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            return { success: false, error: data.error?.message || "Invalid API key" };
+          }
+          return { success: true };
+        } catch (e) {
+          return { success: false, error: "Could not connect to OpenAI" };
+        }
       }
 
       if (provider.type === "anthropic") {
+        if (!apiKey.startsWith("sk-ant-")) {
+          return { success: false, error: "Invalid Anthropic API key format (should start with sk-ant-)" };
+        }
         return { success: true };
       }
 
       if (provider.type === "groq") {
-        const response = await fetch("https://api.groq.com/openai/v1/models", {
-          headers: { Authorization: `Bearer ${apiKey}` },
-        });
-        if (!response.ok) {
-          return { success: false, error: "Invalid Groq API key" };
+        if (baseUrl) {
+          return { success: true, error: "custom_endpoint" };
+        }
+        try {
+          const response = await fetch("https://api.groq.com/openai/v1/models", {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(5000),
+          });
+          if (!response.ok) {
+            return { success: false, error: "Invalid Groq API key" };
+          }
+          return { success: true };
+        } catch (e) {
+          return { success: false, error: "Could not connect to Groq" };
+        }
+      }
+
+      if (provider.type === "google") {
+        if (apiKey.length < 20) {
+          return { success: false, error: "Invalid Google API key" };
         }
         return { success: true };
       }
 
-      return { success: !!apiKey };
+      if (provider.type === "xai") {
+        if (apiKey.length < 10) {
+          return { success: false, error: "Invalid xAI API key" };
+        }
+        return { success: true };
+      }
+
+      return { success: apiKey.length > 0 };
     } catch (error) {
       return { 
         success: false, 
@@ -200,6 +237,14 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
     }
     
     if (provider.isConnected) {
+      if (provider.baseUrl) {
+        return (
+          <Badge variant="outline" className="text-xs gap-1">
+            <Check className="w-3 h-3" />
+            Custom
+          </Badge>
+        );
+      }
       return (
         <Badge variant="secondary" className="text-xs gap-1">
           <Check className="w-3 h-3" />
@@ -502,7 +547,7 @@ function ConfigDialog({
                   data-testid="input-api-key"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Your API key is stored locally in your browser and never sent to our servers.
+                  Stored in your browser only. API calls are made directly from your browser to the provider.
                 </p>
               </div>
 

@@ -87,3 +87,7 @@ The app runs on port 5000 with both frontend and backend served together.
 - **Deployment Modal**: Post-build modal with 3 options - Run in Browser, Download & Run Locally, Share
 - **Export Package**: Complete .zip download with Python script, config, requirements.txt, run scripts, and README
 - **Ollama Setup Guide**: Built-in tips for setting up free local inference with Ollama
+- **Real Inference**: Client-side API calls to user-connected providers (OpenAI, Anthropic, Groq, Google, xAI, Ollama)
+- **Ollama Auto-Detection**: Automatically detects and connects to local Ollama instances
+- **Live/Demo Mode**: Test pane shows "Live Mode" when provider connected, "Demo Mode" otherwise
+- **Connection Testing**: Validates API keys before marking providers as connected

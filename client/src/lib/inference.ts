@@ -43,27 +43,11 @@ export async function getOllamaModels(): Promise<string[]> {
   }
 }
 
-function getProviderEndpoint(provider: ModelProvider): string {
+function getProviderEndpoint(provider: ModelProvider, defaultEndpoint: string): string {
   if (provider.baseUrl) {
     return provider.baseUrl;
   }
-  
-  switch (provider.type) {
-    case "openai":
-      return "https://api.openai.com/v1/chat/completions";
-    case "anthropic":
-      return "https://api.anthropic.com/v1/messages";
-    case "groq":
-      return "https://api.groq.com/openai/v1/chat/completions";
-    case "google":
-      return "https://generativelanguage.googleapis.com/v1beta/models";
-    case "xai":
-      return "https://api.x.ai/v1/chat/completions";
-    case "ollama":
-      return "http://localhost:11434/api/chat";
-    default:
-      return provider.baseUrl || "";
-  }
+  return defaultEndpoint;
 }
 
 async function callOpenAICompatible(
@@ -157,10 +141,11 @@ async function callAnthropic(
 async function callOllama(
   model: string,
   messages: InferenceMessage[],
-  temperature: number
+  temperature: number,
+  endpoint: string = "http://localhost:11434/api/chat"
 ): Promise<InferenceResult> {
   try {
-    const response = await fetch("http://localhost:11434/api/chat", {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -200,7 +185,8 @@ async function callGoogle(
   model: string,
   messages: InferenceMessage[],
   temperature: number,
-  maxTokens: number
+  maxTokens: number,
+  baseUrl?: string
 ): Promise<InferenceResult> {
   try {
     const systemMessage = messages.find(m => m.role === "system");
@@ -211,8 +197,24 @@ async function callGoogle(
       parts: [{ text: m.content }],
     }));
 
+    let endpoint: string;
+    if (baseUrl) {
+      const cleanBase = baseUrl.replace(/\/+$/, "");
+      if (cleanBase.includes(":generateContent")) {
+        endpoint = `${cleanBase}?key=${apiKey}`;
+      } else if (cleanBase.includes("/models/")) {
+        endpoint = `${cleanBase}:generateContent?key=${apiKey}`;
+      } else if (cleanBase.includes("/models")) {
+        endpoint = `${cleanBase}/${model}:generateContent?key=${apiKey}`;
+      } else {
+        endpoint = `${cleanBase}/models/${model}:generateContent?key=${apiKey}`;
+      }
+    } else {
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    }
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      endpoint,
       {
         method: "POST",
         headers: {
@@ -253,12 +255,18 @@ export async function runInference(options: InferenceOptions): Promise<Inference
     return { content: "", success: false, error: "Provider not connected" };
   }
 
+  const defaultEndpoints: Record<string, string> = {
+    openai: "https://api.openai.com/v1/chat/completions",
+    groq: "https://api.groq.com/openai/v1/chat/completions",
+    xai: "https://api.x.ai/v1/chat/completions",
+  };
+
   switch (provider.type) {
     case "openai":
     case "groq":
     case "xai":
       return callOpenAICompatible(
-        getProviderEndpoint(provider),
+        getProviderEndpoint(provider, defaultEndpoints[provider.type]),
         provider.apiKey || "",
         model,
         messages,
@@ -276,7 +284,12 @@ export async function runInference(options: InferenceOptions): Promise<Inference
       );
 
     case "ollama":
-      return callOllama(model, messages, temperature);
+      return callOllama(
+        model, 
+        messages, 
+        temperature,
+        provider.baseUrl || "http://localhost:11434/api/chat"
+      );
 
     case "google":
       return callGoogle(
@@ -284,7 +297,8 @@ export async function runInference(options: InferenceOptions): Promise<Inference
         model,
         messages,
         temperature,
-        maxTokens
+        maxTokens,
+        provider.baseUrl
       );
 
     default:
