@@ -43,39 +43,40 @@ export async function getOllamaModels(): Promise<string[]> {
   }
 }
 
-function getProviderEndpoint(provider: ModelProvider, defaultEndpoint: string): string {
-  if (provider.baseUrl) {
-    return provider.baseUrl;
-  }
-  return defaultEndpoint;
-}
-
-async function callOpenAICompatible(
-  endpoint: string,
+// Use backend proxy to avoid CORS issues with OpenAI, Groq, xAI, Google
+async function callViaProxy(
+  provider: string,
   apiKey: string,
   model: string,
   messages: InferenceMessage[],
   temperature: number,
-  maxTokens: number
+  maxTokens: number,
+  baseUrl?: string
 ): Promise<InferenceResult> {
   try {
-    const response = await fetch(endpoint, {
+    const response = await fetch("/api/inference/proxy", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
+        provider,
+        apiKey,
         model,
         messages,
         temperature,
-        max_tokens: maxTokens,
+        maxTokens,
+        baseUrl,
       }),
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      return { content: "", success: false, error: `API error: ${error}` };
+      const errorData = await response.json().catch(() => ({}));
+      return { 
+        content: "", 
+        success: false, 
+        error: errorData.error || `API error (${response.status})` 
+      };
     }
 
     const data = await response.json();
@@ -255,23 +256,18 @@ export async function runInference(options: InferenceOptions): Promise<Inference
     return { content: "", success: false, error: "Provider not connected" };
   }
 
-  const defaultEndpoints: Record<string, string> = {
-    openai: "https://api.openai.com/v1/chat/completions",
-    groq: "https://api.groq.com/openai/v1/chat/completions",
-    xai: "https://api.x.ai/v1/chat/completions",
-  };
-
   switch (provider.type) {
     case "openai":
     case "groq":
     case "xai":
-      return callOpenAICompatible(
-        getProviderEndpoint(provider, defaultEndpoints[provider.type]),
+      return callViaProxy(
+        provider.type,
         provider.apiKey || "",
         model,
         messages,
         temperature,
-        maxTokens
+        maxTokens,
+        provider.baseUrl
       );
 
     case "anthropic":
@@ -292,7 +288,8 @@ export async function runInference(options: InferenceOptions): Promise<Inference
       );
 
     case "google":
-      return callGoogle(
+      return callViaProxy(
+        "google",
         provider.apiKey || "",
         model,
         messages,
@@ -303,13 +300,15 @@ export async function runInference(options: InferenceOptions): Promise<Inference
 
     default:
       if (provider.baseUrl) {
-        return callOpenAICompatible(
-          provider.baseUrl,
+        // For custom providers, try OpenAI-compatible format via proxy
+        return callViaProxy(
+          "openai",
           provider.apiKey || "",
           model,
           messages,
           temperature,
-          maxTokens
+          maxTokens,
+          provider.baseUrl
         );
       }
       return { content: "", success: false, error: "Unknown provider type" };
