@@ -53,6 +53,7 @@ export default function Builder() {
     resetBuilder, 
     providers, 
     selectedProviderId,
+    selectedModelId,
     currentAgent,
     updateBuilderAgent,
     setBuilderStep,
@@ -93,13 +94,21 @@ export default function Builder() {
   };
 
   const handleTemplateSelect = (template: AgentTemplate) => {
-    updateBuilderAgent(template.config);
+    // Use currently selected model instead of template's hardcoded model
+    const modelId = selectedModelId || template.config.modelId;
+    const providerId = selectedProviderId || template.config.providerId;
+    
+    updateBuilderAgent({
+      ...template.config,
+      modelId,
+      providerId,
+    });
     setBuilderStep("complete");
     
     addBuilderMessage({
       id: crypto.randomUUID(),
       role: "assistant",
-      content: `I've loaded the "${template.name}" template for you!\n\n**Name:** ${template.config.name}\n**Goal:** ${template.config.goal}\n**Personality:** ${template.config.personality}\n**Tools:** ${template.config.tools?.join(", ")}\n**Model:** ${template.config.modelId}\n\nYour agent is ready! You can test it in the Test tab, make adjustments, or save it to your library.`,
+      content: `I've loaded the "${template.name}" template for you!\n\n**Name:** ${template.config.name}\n**Goal:** ${template.config.goal}\n**Personality:** ${template.config.personality}\n**Tools:** ${template.config.tools?.join(", ")}\n**Model:** ${modelId}\n\nYour agent is ready! You can test it in the Test tab, make adjustments, or save it to your library.`,
       timestamp: new Date().toISOString(),
     });
 
