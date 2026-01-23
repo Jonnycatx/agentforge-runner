@@ -232,7 +232,9 @@ export default function Builder() {
             </div>
 
             <div className="flex items-center gap-2">
-              <ModelSelector compact onSelect={() => {}} />
+              <ModelSelector compact onSelect={(providerId, modelId) => {
+                updateBuilderAgent({ modelId, providerId });
+              }} />
               
               <Separator orientation="vertical" className="h-8 hidden sm:block" />
 
