@@ -135,6 +135,26 @@ export const useAgentStore = create<AgentStore>()(
         selectedProviderId: state.selectedProviderId,
         selectedModelId: state.selectedModelId,
       }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<AgentStore>;
+        // Merge providers: use default models but preserve user's API keys and connection status
+        const mergedProviders = defaultProviders.map((defaultProvider) => {
+          const cached = persisted.providers?.find((p) => p.id === defaultProvider.id);
+          return {
+            ...defaultProvider,
+            apiKey: cached?.apiKey,
+            baseUrl: cached?.baseUrl || defaultProvider.baseUrl,
+            isConnected: cached?.isConnected || false,
+            // Always use latest models from defaults
+            models: defaultProvider.models,
+          };
+        });
+        return {
+          ...currentState,
+          ...persisted,
+          providers: mergedProviders,
+        };
+      },
     }
   )
 );
