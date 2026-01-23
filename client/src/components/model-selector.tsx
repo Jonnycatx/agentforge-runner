@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentStore } from "@/lib/agent-store";
 import { checkOllamaHealth, getOllamaModels } from "@/lib/inference";
 import { Check, ChevronDown, Key, Settings, Zap, AlertCircle, Loader2, Cpu, Globe, Plus } from "lucide-react";
@@ -378,6 +379,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
           className="space-y-3"
         >
           <Label>Select Model</Label>
+          <ScrollArea className="h-[300px] pr-3">
           <div className="grid gap-2">
             {selectedProvider.models?.map((model) => (
               <Card
@@ -414,6 +416,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
               </Card>
             ))}
           </div>
+          </ScrollArea>
         </motion.div>
       )}
 
