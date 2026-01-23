@@ -1,0 +1,73 @@
+Additional Feature Ideas for AgentForge
+Here are thoughtful, prioritized additions that enhance usability, engagement, and virality while staying true to the core constraints: zero central inference cost, Apple-like minimalism, and maximum user-friendliness. All ideas route any compute to the user's own models or client-side only.
+1. Core Builder Enhancements (Highest Priority – Make it even more "dummy-proof")
+
+Template Gallery on Start
+When a user lands in the Builder, show a clean grid of 8–12 popular starter templates (e.g., "Web Designer Agent", "Code Reviewer", "Research Assistant", "Personal Task Manager", "E-commerce Product Description Writer").
+One-click starts the conversation pre-loaded with a proven system prompt + tools. Reduces blank-page anxiety.
+Progressive Tool Suggestions
+As the Builder Agent chats with the user, it auto-suggests relevant tools (web search, browser automation, image generation via user's Stable Diffusion key, code interpreter, file upload/analysis).
+Tools are client-side only (e.g., use Tauri/WebAssembly for local file access, or route to user's API keys).
+Live Agent Testing Pane
+Expand the right sidebar: after code generation, add a third tab – "Test Your Agent".
+Instant chat window where the user can talk to the newly built agent (powered by the user's selected runtime model) without leaving the page.
+One-Click "Remix" from Examples
+On the landing page and gallery, add a prominent "Remix this agent" button that forks it into the user's workspace and opens the Builder pre-loaded.
+
+2. Community & Discovery Features
+
+Curated "Featured" Section
+Hero carousel on the homepage showing 4–6 staff- or community-curated agents of the week (e.g., "Best Coding Agent", "Top Creative Writer").
+Drives inspiration and shows what's possible.
+Advanced Gallery Search & Filters
+Search by category (Coding, Design, Research, Fun), model compatibility, popularity (forks/views), recency.
+Tags auto-generated from agent descriptions + user-added tags.
+Agent Ratings & Reviews
+Simple star rating + short text reviews.
+Upvote/downvote system to surface quality (like Replit explores).
+Fork History & Diff View
+When forking, show a clean Git-like diff of changes made from the original.
+Encourages iteration and learning.
+
+3. Export & Deployment Options
+
+One-Click Deploy Buttons
+"Deploy as Web App" → generates a Vercel/Netlify-ready template (static Next.js page with the agent embedded).
+"Deploy as Telegram/Discord Bot" → exports code with Telegraf or Discord.js wrappers.
+"Run Locally with Ollama" → Docker Compose file pre-configured.
+
+Shareable Live Demo Links
+When sharing an agent publicly, auto-generate a temporary public demo URL (using a serverless edge function that proxies to a default public model like Groq's free tier – with clear warning that it's rate-limited and for demo only).
+
+4. User Experience Polish
+
+Onboarding Flow
+First-time users get a 3-step interactive tour: connect a model → try a template → build something simple.
+Saved Workspaces & Projects
+Users can organize agents into folders/projects. Auto-sync across devices via their account.
+Dark Mode Toggle
+Clean system-based light/dark mode (default to user's OS preference).
+Voice Mode for Builder Chat
+Use Web Speech API (browser-native) for voice-to-text input and text-to-speech output during building. No server cost.
+Mobile-Optimized / PWA
+Full progressive web app support – installable on phone, works offline for viewing saved agents.
+
+5. Advanced (Post-MVP) Ideas
+
+Agent Marketplace (Lightweight)
+Users can optionally list agents for "tips" (crypto or Stripe) – platform takes no cut, just facilitates.
+Local-First Mode
+Optional desktop app (Tauri or Electron) that runs everything offline with Ollama/LM Studio integration.
+Analytics Dashboard
+For each agent: token usage, conversation count, user feedback – all computed client-side and stored locally or in user's Supabase row.
+Plugin System
+Community can upload client-side tool plugins (e.g., custom browser automation scripts) that users opt-in to add to their agents.
+
+Prioritization Recommendation
+
+Templates + Live Testing Pane (biggest impact on ease-of-use)
+Featured section + better gallery search
+One-click deploy options
+Onboarding + voice mode
+
+These keep the product focused, beautiful, and sticky – users arrive, get instant value, and want to share what they built. Let's discuss which to tackle first.

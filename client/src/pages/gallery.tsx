@@ -1,10 +1,17 @@
-import { useState } from "react";
-import { Link } from "wouter";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Header } from "@/components/header";
 import { useAgentStore } from "@/lib/agent-store";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +25,9 @@ import {
   Copy, 
   Play,
   Clock,
+  Sparkles,
+  TrendingUp,
+  Filter,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
@@ -34,28 +44,73 @@ import {
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
-import { useEffect } from "react";
+
+const categories = [
+  { value: "all", label: "All Categories" },
+  { value: "coding", label: "Coding" },
+  { value: "design", label: "Design" },
+  { value: "research", label: "Research" },
+  { value: "productivity", label: "Productivity" },
+  { value: "creative", label: "Creative" },
+  { value: "business", label: "Business" },
+];
+
+const sortOptions = [
+  { value: "recent", label: "Most Recent" },
+  { value: "name", label: "Name A-Z" },
+  { value: "tools", label: "Most Tools" },
+];
 
 export default function Gallery() {
-  const { setCurrentAgent } = useAgentStore();
+  const [, setLocation] = useLocation();
+  const { setCurrentAgent, updateBuilderAgent, setBuilderStep, addBuilderMessage, resetBuilder } = useAgentStore();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [sortBy, setSortBy] = useState("recent");
 
-  // Set page title
   useEffect(() => {
     document.title = "Agent Gallery | AgentForge";
   }, []);
 
-  // Fetch agents from backend
   const { data: agents = [], isLoading, error } = useQuery<AgentConfig[]>({
     queryKey: ["/api/agents"],
   });
 
-  const filteredAgents = agents.filter(agent => 
-    agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    agent.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    agent.goal.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAgents = agents
+    .filter(agent => {
+      const matchesSearch =
+        agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        agent.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        agent.goal.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      if (selectedCategory === "all") return matchesSearch;
+      
+      const agentCategory = guessCategory(agent);
+      return matchesSearch && agentCategory === selectedCategory;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "tools":
+          return (b.tools?.length || 0) - (a.tools?.length || 0);
+        case "recent":
+        default:
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      }
+    });
+
+  function guessCategory(agent: AgentConfig): string {
+    const text = `${agent.name} ${agent.goal} ${agent.description || ""}`.toLowerCase();
+    if (text.includes("code") || text.includes("debug") || text.includes("api") || text.includes("developer")) return "coding";
+    if (text.includes("design") || text.includes("ui") || text.includes("ux") || text.includes("web")) return "design";
+    if (text.includes("research") || text.includes("analysis") || text.includes("data")) return "research";
+    if (text.includes("task") || text.includes("email") || text.includes("productivity")) return "productivity";
+    if (text.includes("content") || text.includes("write") || text.includes("creative") || text.includes("social")) return "creative";
+    if (text.includes("business") || text.includes("product") || text.includes("sales")) return "business";
+    return "all";
+  }
 
   const handleDelete = async (id: string) => {
     try {
@@ -74,19 +129,33 @@ export default function Gallery() {
     }
   };
 
-  const handleFork = (agent: AgentConfig) => {
-    const forkedAgent = {
+  const handleRemix = (agent: AgentConfig) => {
+    resetBuilder();
+    
+    const remixConfig = {
       ...agent,
       id: crypto.randomUUID(),
-      name: `${agent.name} (Copy)`,
+      name: `${agent.name} (Remix)`,
       isPublic: false,
       createdAt: new Date().toISOString(),
     };
-    setCurrentAgent(forkedAgent);
+    
+    updateBuilderAgent(remixConfig);
+    setBuilderStep("complete");
+    
+    addBuilderMessage({
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: `I've loaded "${agent.name}" for you to remix!\n\n**Name:** ${remixConfig.name}\n**Goal:** ${remixConfig.goal}\n**Tools:** ${remixConfig.tools?.join(", ") || "None"}\n**Model:** ${remixConfig.modelId || "gpt-4o"}\n\nFeel free to modify any settings, test it out, or save it as your own!`,
+      timestamp: new Date().toISOString(),
+    });
+    
     toast({
       title: "Agent forked!",
       description: "Opening in the builder...",
     });
+    
+    setLocation("/builder");
   };
 
   const formatDate = (dateString?: string) => {
@@ -98,13 +167,33 @@ export default function Gallery() {
     });
   };
 
+  const getCategoryBadge = (agent: AgentConfig) => {
+    const category = guessCategory(agent);
+    if (category === "all") return null;
+    
+    const categoryConfig: Record<string, { color: string; label: string }> = {
+      coding: { color: "bg-blue-500/10 text-blue-600 dark:text-blue-400", label: "Coding" },
+      design: { color: "bg-purple-500/10 text-purple-600 dark:text-purple-400", label: "Design" },
+      research: { color: "bg-green-500/10 text-green-600 dark:text-green-400", label: "Research" },
+      productivity: { color: "bg-orange-500/10 text-orange-600 dark:text-orange-400", label: "Productivity" },
+      creative: { color: "bg-pink-500/10 text-pink-600 dark:text-pink-400", label: "Creative" },
+      business: { color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400", label: "Business" },
+    };
+    
+    const config = categoryConfig[category];
+    return config ? (
+      <Badge variant="secondary" className={`text-xs ${config.color}`}>
+        {config.label}
+      </Badge>
+    ) : null;
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
 
       <main className="flex-1 pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-bold mb-2" data-testid="text-gallery-title">
@@ -122,19 +211,47 @@ export default function Gallery() {
             </Link>
           </div>
 
-          {/* Search */}
-          <div className="relative mb-8">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search agents..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 max-w-md"
-              data-testid="input-search-agents"
-            />
+          <div className="flex flex-col sm:flex-row gap-4 mb-8">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search agents..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+                data-testid="input-search-agents"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-[160px]" data-testid="select-category">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[140px]" data-testid="select-sort">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Loading state */}
           {isLoading && (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -158,7 +275,6 @@ export default function Gallery() {
             </div>
           )}
 
-          {/* Error state */}
           {error && (
             <div className="text-center py-16">
               <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-4">
@@ -171,7 +287,6 @@ export default function Gallery() {
             </div>
           )}
 
-          {/* Agents grid */}
           {!isLoading && !error && filteredAgents.length === 0 ? (
             <div className="text-center py-16">
               <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
@@ -209,9 +324,17 @@ export default function Gallery() {
                         <Bot className="w-5 h-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base truncate">
-                          {agent.name}
-                        </CardTitle>
+                        <div className="flex items-start gap-2 mb-1">
+                          <CardTitle className="text-base truncate flex-1">
+                            {agent.name}
+                          </CardTitle>
+                          {agent.isPublic && (
+                            <Badge variant="secondary" className="text-xs flex-shrink-0">
+                              <Sparkles className="w-3 h-3 mr-1" />
+                              Featured
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                           {agent.description || agent.goal}
                         </p>
@@ -220,14 +343,15 @@ export default function Gallery() {
 
                     <CardContent className="flex-1">
                       <div className="flex flex-wrap gap-1.5 mb-4">
-                        {agent.tools?.slice(0, 3).map((tool) => (
-                          <Badge key={tool} variant="secondary" className="text-xs">
+                        {getCategoryBadge(agent)}
+                        {agent.tools?.slice(0, 2).map((tool) => (
+                          <Badge key={tool} variant="outline" className="text-xs">
                             {tool.replace(/_/g, " ")}
                           </Badge>
                         ))}
-                        {agent.tools && agent.tools.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{agent.tools.length - 3}
+                        {agent.tools && agent.tools.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{agent.tools.length - 2}
                           </Badge>
                         )}
                       </div>
@@ -251,18 +375,21 @@ export default function Gallery() {
                         variant="outline" 
                         size="sm" 
                         className="flex-1"
-                        onClick={() => handleFork(agent)}
+                        onClick={() => handleRemix(agent)}
                         data-testid={`button-fork-${agent.id}`}
                       >
                         <Copy className="w-3 h-3 mr-1" />
-                        Fork
+                        Remix
                       </Button>
-                      <Link href="/builder" className="flex-1">
-                        <Button size="sm" className="w-full" data-testid={`button-run-${agent.id}`}>
-                          <Play className="w-3 h-3 mr-1" />
-                          Run
-                        </Button>
-                      </Link>
+                      <Button 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => handleRemix(agent)}
+                        data-testid={`button-run-${agent.id}`}
+                      >
+                        <Play className="w-3 h-3 mr-1" />
+                        Run
+                      </Button>
                       {!agent.isPublic && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -302,7 +429,6 @@ export default function Gallery() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="border-t py-8 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-muted-foreground">
           <p>AgentForge - Build AI agents with zero platform fees</p>

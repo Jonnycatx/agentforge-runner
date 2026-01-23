@@ -1,0 +1,223 @@
+import type { AgentConfig } from "@shared/schema";
+
+export interface AgentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: "coding" | "design" | "research" | "productivity" | "creative" | "business";
+  icon: string;
+  config: Partial<AgentConfig>;
+}
+
+export const agentTemplates: AgentTemplate[] = [
+  {
+    id: "web-designer",
+    name: "Web Designer",
+    description: "Helps create modern, responsive website designs with HTML, CSS, and accessibility best practices.",
+    category: "design",
+    icon: "palette",
+    config: {
+      name: "Web Design Assistant",
+      goal: "Help users create beautiful, modern, and responsive website designs with clean HTML and CSS",
+      personality: "Creative and detail-oriented, with a keen eye for aesthetics and user experience. Explains design choices clearly.",
+      tools: ["html_generator", "css_generator", "image_analysis", "web_search"],
+      modelId: "gpt-4o",
+      temperature: 0.7,
+      maxTokens: 4096,
+    },
+  },
+  {
+    id: "code-reviewer",
+    name: "Code Reviewer",
+    description: "Reviews code for bugs, security issues, and best practices with detailed explanations.",
+    category: "coding",
+    icon: "code",
+    config: {
+      name: "Code Review Expert",
+      goal: "Analyze code for bugs, security vulnerabilities, performance issues, and adherence to best practices",
+      personality: "Thorough and constructive, providing actionable feedback with clear explanations and examples.",
+      tools: ["code_interpreter", "file_reader", "web_search"],
+      modelId: "gpt-4o",
+      temperature: 0.3,
+      maxTokens: 4096,
+    },
+  },
+  {
+    id: "research-assistant",
+    name: "Research Assistant",
+    description: "Gathers, synthesizes, and summarizes information from multiple sources.",
+    category: "research",
+    icon: "search",
+    config: {
+      name: "Research Assistant",
+      goal: "Help users research topics thoroughly by gathering information from multiple sources and providing clear summaries",
+      personality: "Curious and methodical, presenting information objectively with proper citations and balanced perspectives.",
+      tools: ["web_search", "file_reader", "calculator"],
+      modelId: "gpt-4o",
+      temperature: 0.5,
+      maxTokens: 4096,
+    },
+  },
+  {
+    id: "task-manager",
+    name: "Task Manager",
+    description: "Helps organize tasks, set priorities, and manage productivity workflows.",
+    category: "productivity",
+    icon: "check-square",
+    config: {
+      name: "Personal Task Manager",
+      goal: "Help users organize their tasks, set priorities, manage deadlines, and improve productivity",
+      personality: "Efficient and supportive, breaking down complex projects into actionable steps.",
+      tools: ["calculator", "file_reader"],
+      modelId: "gpt-4o-mini",
+      temperature: 0.4,
+      maxTokens: 2048,
+    },
+  },
+  {
+    id: "content-writer",
+    name: "Content Writer",
+    description: "Creates engaging blog posts, articles, and marketing copy.",
+    category: "creative",
+    icon: "pen-tool",
+    config: {
+      name: "Content Writing Pro",
+      goal: "Write engaging, SEO-friendly blog posts, articles, and marketing copy that resonates with target audiences",
+      personality: "Creative and adaptable, matching tone and style to different brands and audiences.",
+      tools: ["web_search", "file_reader"],
+      modelId: "gpt-4o",
+      temperature: 0.8,
+      maxTokens: 4096,
+    },
+  },
+  {
+    id: "data-analyst",
+    name: "Data Analyst",
+    description: "Analyzes data, creates visualizations, and provides insights.",
+    category: "business",
+    icon: "bar-chart",
+    config: {
+      name: "Data Analysis Expert",
+      goal: "Analyze datasets, identify patterns, create visualizations, and provide actionable business insights",
+      personality: "Analytical and precise, explaining complex data concepts in accessible terms.",
+      tools: ["code_interpreter", "calculator", "file_reader"],
+      modelId: "gpt-4o",
+      temperature: 0.3,
+      maxTokens: 4096,
+    },
+  },
+  {
+    id: "product-writer",
+    name: "Product Writer",
+    description: "Writes compelling product descriptions for e-commerce.",
+    category: "business",
+    icon: "shopping-bag",
+    config: {
+      name: "E-commerce Product Writer",
+      goal: "Create compelling, conversion-focused product descriptions that highlight benefits and drive sales",
+      personality: "Persuasive and detail-oriented, understanding what makes products appealing to buyers.",
+      tools: ["web_search", "image_analysis"],
+      modelId: "gpt-4o",
+      temperature: 0.7,
+      maxTokens: 2048,
+    },
+  },
+  {
+    id: "debug-helper",
+    name: "Debug Helper",
+    description: "Helps diagnose and fix bugs in code with step-by-step debugging.",
+    category: "coding",
+    icon: "bug",
+    config: {
+      name: "Debugging Assistant",
+      goal: "Help developers identify, diagnose, and fix bugs in their code with systematic debugging approaches",
+      personality: "Patient and methodical, asking clarifying questions and guiding through debugging step by step.",
+      tools: ["code_interpreter", "file_reader", "web_search"],
+      modelId: "gpt-4o",
+      temperature: 0.2,
+      maxTokens: 4096,
+    },
+  },
+  {
+    id: "api-designer",
+    name: "API Designer",
+    description: "Designs RESTful APIs with proper structure and documentation.",
+    category: "coding",
+    icon: "server",
+    config: {
+      name: "API Design Expert",
+      goal: "Design clean, well-documented RESTful APIs following industry best practices and standards",
+      personality: "Technical and precise, focusing on consistency, scalability, and developer experience.",
+      tools: ["code_interpreter", "file_reader", "web_search"],
+      modelId: "gpt-4o",
+      temperature: 0.4,
+      maxTokens: 4096,
+    },
+  },
+  {
+    id: "ux-researcher",
+    name: "UX Researcher",
+    description: "Provides UX insights, user journey analysis, and usability recommendations.",
+    category: "design",
+    icon: "users",
+    config: {
+      name: "UX Research Consultant",
+      goal: "Analyze user experiences, identify pain points, and provide actionable UX improvement recommendations",
+      personality: "Empathetic and user-focused, grounding recommendations in user research principles.",
+      tools: ["web_search", "file_reader", "image_analysis"],
+      modelId: "gpt-4o",
+      temperature: 0.6,
+      maxTokens: 4096,
+    },
+  },
+  {
+    id: "email-writer",
+    name: "Email Writer",
+    description: "Crafts professional emails for various business contexts.",
+    category: "productivity",
+    icon: "mail",
+    config: {
+      name: "Professional Email Writer",
+      goal: "Write clear, professional emails that effectively communicate messages and achieve desired outcomes",
+      personality: "Professional and adaptable, matching tone to context from formal to friendly.",
+      tools: ["web_search"],
+      modelId: "gpt-4o-mini",
+      temperature: 0.6,
+      maxTokens: 2048,
+    },
+  },
+  {
+    id: "social-media",
+    name: "Social Media Pro",
+    description: "Creates engaging social media content and strategies.",
+    category: "creative",
+    icon: "share-2",
+    config: {
+      name: "Social Media Manager",
+      goal: "Create engaging social media content, develop posting strategies, and grow audience engagement",
+      personality: "Trendy and creative, understanding what resonates on different platforms.",
+      tools: ["web_search", "image_analysis"],
+      modelId: "gpt-4o",
+      temperature: 0.8,
+      maxTokens: 2048,
+    },
+  },
+];
+
+export const categoryLabels: Record<AgentTemplate["category"], string> = {
+  coding: "Coding",
+  design: "Design",
+  research: "Research",
+  productivity: "Productivity",
+  creative: "Creative",
+  business: "Business",
+};
+
+export const categoryColors: Record<AgentTemplate["category"], string> = {
+  coding: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  design: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  research: "bg-green-500/10 text-green-600 dark:text-green-400",
+  productivity: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+  creative: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
+  business: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+};

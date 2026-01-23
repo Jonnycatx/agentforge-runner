@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentStore } from "@/lib/agent-store";
-import { Copy, Download, Play, Code2, FileJson, Sparkles } from "lucide-react";
+import { AgentTestPane } from "@/components/agent-test-pane";
+import { Copy, Download, Code2, FileJson, Sparkles, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function CodePreview() {
@@ -182,6 +183,10 @@ if __name__ == "__main__":
               <Code2 className="w-3 h-3 mr-1" />
               Python
             </TabsTrigger>
+            <TabsTrigger value="test" className="text-xs" data-testid="tab-test">
+              <Play className="w-3 h-3 mr-1" />
+              Test
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -200,16 +205,11 @@ if __name__ == "__main__":
             </pre>
           </ScrollArea>
         </TabsContent>
-      </Tabs>
 
-      {builderState.step === "complete" && (
-        <div className="border-t p-4">
-          <Button className="w-full" data-testid="button-run-agent">
-            <Play className="w-4 h-4 mr-2" />
-            Run Agent
-          </Button>
-        </div>
-      )}
+        <TabsContent value="test" className="flex-1 m-0 data-[state=inactive]:hidden overflow-hidden">
+          <AgentTestPane />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

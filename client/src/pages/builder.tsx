@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -11,8 +12,10 @@ import { Header } from "@/components/header";
 import { ModelSelector } from "@/components/model-selector";
 import { ChatInterface } from "@/components/chat-interface";
 import { CodePreview } from "@/components/code-preview";
+import { TemplateGallery } from "@/components/template-gallery";
 import { useAgentStore } from "@/lib/agent-store";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { AgentTemplate } from "@/lib/templates";
 import { 
   Settings2, 
   RotateCcw, 
@@ -20,7 +23,8 @@ import {
   Sparkles,
   ChevronDown,
   Zap,
-  Info
+  LayoutTemplate,
+  MessageSquare
 } from "lucide-react";
 import {
   Sheet,
@@ -39,34 +43,72 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 
 export default function Builder() {
+  const [location] = useLocation();
   const { 
     builderState, 
     resetBuilder, 
     providers, 
     selectedProviderId,
+    currentAgent,
+    updateBuilderAgent,
+    setBuilderStep,
+    addBuilderMessage,
   } = useAgentStore();
   const { toast } = useToast();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelSectionOpen, setModelSectionOpen] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(true);
 
-  // Set page title
   useEffect(() => {
     document.title = "Agent Builder | AgentForge";
   }, []);
+
+  useEffect(() => {
+    if (currentAgent && currentAgent.name) {
+      setShowTemplates(false);
+    }
+  }, [currentAgent]);
+
+  useEffect(() => {
+    if (builderState.step !== "greeting") {
+      setShowTemplates(false);
+    }
+  }, [builderState.step]);
 
   const hasConnectedProvider = providers.some(p => p.isConnected);
 
   const handleReset = () => {
     resetBuilder();
+    setShowTemplates(true);
     toast({
       title: "Builder reset",
       description: "Starting fresh with a new agent",
     });
   };
 
+  const handleTemplateSelect = (template: AgentTemplate) => {
+    updateBuilderAgent(template.config);
+    setBuilderStep("complete");
+    
+    addBuilderMessage({
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: `I've loaded the "${template.name}" template for you!\n\n**Name:** ${template.config.name}\n**Goal:** ${template.config.goal}\n**Personality:** ${template.config.personality}\n**Tools:** ${template.config.tools?.join(", ")}\n**Model:** ${template.config.modelId}\n\nYour agent is ready! You can test it in the Test tab, make adjustments, or save it to your library.`,
+      timestamp: new Date().toISOString(),
+    });
+
+    setShowTemplates(false);
+    
+    toast({
+      title: "Template loaded!",
+      description: `${template.name} is ready to use`,
+    });
+  };
+
   const handleSave = async () => {
-    if (!builderState.currentAgent || !builderState.currentAgent.name) {
+    const agentToSave = builderState.currentAgent;
+    if (!agentToSave || !agentToSave.name) {
       toast({
         title: "Cannot save",
         description: "Please complete building your agent first",
@@ -78,17 +120,17 @@ export default function Builder() {
     setIsSaving(true);
     try {
       const agentData = {
-        name: builderState.currentAgent.name || "Untitled Agent",
-        goal: builderState.currentAgent.goal || "",
-        description: builderState.currentAgent.description,
-        personality: builderState.currentAgent.personality,
-        tools: builderState.currentAgent.tools || [],
-        knowledge: builderState.currentAgent.knowledge || [],
-        modelId: builderState.currentAgent.modelId,
+        name: agentToSave.name || "Untitled Agent",
+        goal: agentToSave.goal || "",
+        description: agentToSave.description,
+        personality: agentToSave.personality,
+        tools: agentToSave.tools || [],
+        knowledge: agentToSave.knowledge || [],
+        modelId: agentToSave.modelId,
         providerId: selectedProviderId || undefined,
-        systemPrompt: builderState.currentAgent.systemPrompt,
-        temperature: builderState.currentAgent.temperature || 0.7,
-        maxTokens: builderState.currentAgent.maxTokens || 4096,
+        systemPrompt: agentToSave.systemPrompt,
+        temperature: agentToSave.temperature || 0.7,
+        maxTokens: agentToSave.maxTokens || 4096,
         isPublic: false,
       };
 
@@ -126,7 +168,6 @@ export default function Builder() {
 
       <main className="flex-1 pt-16">
         <div className="h-[calc(100vh-4rem)] flex flex-col">
-          {/* Top bar */}
           <div className="flex items-center justify-between p-4 border-b bg-background">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -145,7 +186,6 @@ export default function Builder() {
 
               <Separator orientation="vertical" className="h-8" />
 
-              {/* Progress indicator */}
               <div className="hidden sm:flex items-center gap-2">
                 <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
                   <motion.div 
@@ -223,30 +263,57 @@ export default function Builder() {
             </div>
           </div>
 
-          {/* Demo mode info banner */}
-          <div className="px-4 py-2 bg-primary/5 border-b border-primary/10">
-            <div className="flex items-center gap-2 text-sm text-primary">
-              <Info className="w-4 h-4 flex-shrink-0" />
-              <span>
-                Demo mode: The builder walks you through agent creation. Connect a provider to run your agents.
-              </span>
-            </div>
-          </div>
-
-          {/* Main content - split view */}
           <div className="flex-1 overflow-hidden">
             <ResizablePanelGroup direction="horizontal" className="h-full">
               <ResizablePanel defaultSize={50} minSize={30}>
                 <div className="h-full flex flex-col bg-background">
                   <div className="flex items-center gap-2 p-4 border-b">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    <span className="font-medium text-sm">Conversation</span>
-                    <Badge variant="secondary" className="text-xs capitalize">
-                      {builderState.step}
-                    </Badge>
+                    {showTemplates ? (
+                      <>
+                        <LayoutTemplate className="w-4 h-4 text-primary" />
+                        <span className="font-medium text-sm">Choose a Template</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-auto"
+                          onClick={() => setShowTemplates(false)}
+                          data-testid="button-skip-templates"
+                        >
+                          <MessageSquare className="w-3 h-3 mr-1" />
+                          Start from Scratch
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        <span className="font-medium text-sm">Conversation</span>
+                        <Badge variant="secondary" className="text-xs capitalize">
+                          {builderState.step}
+                        </Badge>
+                        {builderState.step === "greeting" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="ml-auto"
+                            onClick={() => setShowTemplates(true)}
+                            data-testid="button-show-templates"
+                          >
+                            <LayoutTemplate className="w-3 h-3 mr-1" />
+                            Templates
+                          </Button>
+                        )}
+                      </>
+                    )}
                   </div>
                   <div className="flex-1 overflow-hidden">
-                    <ChatInterface />
+                    {showTemplates ? (
+                      <TemplateGallery 
+                        onSelect={handleTemplateSelect}
+                        onClose={() => setShowTemplates(false)}
+                      />
+                    ) : (
+                      <ChatInterface />
+                    )}
                   </div>
                 </div>
               </ResizablePanel>

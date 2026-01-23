@@ -1,9 +1,11 @@
 import { useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/header";
+import { useAgentStore } from "@/lib/agent-store";
+import { agentTemplates } from "@/lib/templates";
 import { motion } from "framer-motion";
 import {
   Zap,
@@ -16,6 +18,7 @@ import {
   Bot,
   Cpu,
   Layers,
+  Play,
 } from "lucide-react";
 
 const fadeInUp = {
@@ -33,10 +36,29 @@ const staggerContainer = {
 };
 
 export default function Landing() {
-  // Set page title and meta
+  const [, setLocation] = useLocation();
+  const { updateBuilderAgent, setBuilderStep, addBuilderMessage, resetBuilder } = useAgentStore();
+
   useEffect(() => {
     document.title = "AgentForge - Build AI Agents with Natural Language";
   }, []);
+
+  const featuredTemplates = agentTemplates.slice(0, 6);
+
+  const handleTemplateClick = (template: typeof agentTemplates[0]) => {
+    resetBuilder();
+    updateBuilderAgent(template.config);
+    setBuilderStep("complete");
+    
+    addBuilderMessage({
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: `I've loaded the "${template.name}" template for you!\n\n**Name:** ${template.config.name}\n**Goal:** ${template.config.goal}\n\nYour agent is ready! Test it, customize it, or save it to your library.`,
+      timestamp: new Date().toISOString(),
+    });
+    
+    setLocation("/builder");
+  };
 
   const features = [
     {
@@ -282,8 +304,98 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Providers Section */}
+      {/* Featured Agents Section */}
       <section className="py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="text-center mb-16"
+          >
+            <motion.h2
+              variants={fadeInUp}
+              className="text-3xl sm:text-4xl font-bold mb-4"
+              data-testid="text-featured-title"
+            >
+              Featured Agent Templates
+            </motion.h2>
+            <motion.p
+              variants={fadeInUp}
+              className="text-muted-foreground text-lg max-w-2xl mx-auto"
+            >
+              Start with a proven template and customize it to your needs
+            </motion.p>
+          </motion.div>
+
+          <motion.div
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
+            {featuredTemplates.map((template) => (
+              <motion.div key={template.id} variants={fadeInUp}>
+                <Card 
+                  className="h-full hover-elevate cursor-pointer transition-all duration-300"
+                  onClick={() => handleTemplateClick(template)}
+                  data-testid={`card-featured-${template.id}`}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Bot className="w-6 h-6 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold">{template.name}</h3>
+                          <Badge variant="secondary" className="text-xs">
+                            {template.category}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                          {template.description}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {template.config.modelId}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {template.config.tools?.length || 0} tools
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Click to start building</span>
+                      <Play className="w-4 h-4 text-primary" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mt-8"
+          >
+            <Link href="/builder">
+              <Button variant="outline" size="lg">
+                View All Templates
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Providers Section */}
+      <section className="py-24 bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="initial"
