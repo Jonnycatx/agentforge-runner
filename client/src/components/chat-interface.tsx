@@ -7,13 +7,14 @@ import { useAgentStore } from "@/lib/agent-store";
 import type { ChatMessage } from "@shared/schema";
 import { Send, Bot, User, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { runInference, buildSystemPrompt, convertChatHistory } from "@/lib/inference";
 
 interface ChatInterfaceProps {
   onAgentUpdate?: (updates: Record<string, unknown>) => void;
 }
 
 export function ChatInterface({ onAgentUpdate }: ChatInterfaceProps) {
-  const { builderState, addBuilderMessage, setBuilderStep, updateBuilderAgent, providers } =
+  const { builderState, addBuilderMessage, setBuilderStep, updateBuilderAgent, providers, selectedProviderId, selectedModelId } =
     useAgentStore();
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -22,6 +23,10 @@ export function ChatInterface({ onAgentUpdate }: ChatInterfaceProps) {
 
   // Check if any provider is connected
   const hasConnectedProvider = providers.some((p) => p.isConnected);
+  
+  // Get selected provider for real AI responses
+  const selectedProvider = providers.find((p) => p.id === selectedProviderId);
+  const canUseRealAI = selectedProvider?.isConnected && selectedModelId;
 
   // Initial greeting message
   useEffect(() => {
@@ -86,6 +91,44 @@ export function ChatInterface({ onAgentUpdate }: ChatInterfaceProps) {
         });
         onAgentUpdate?.({ complete: true });
         return `Your agent is ready! I've generated the configuration and code.\n\nYou can:\n- **Run** the agent in the preview pane\n- **Export** the code as a project\n- **Save** to your agent library\n\nFeel free to test it out or make any final adjustments!`;
+
+      case "complete":
+        // Use real AI for refinement conversations after agent is complete
+        if (canUseRealAI && selectedProvider) {
+          const agent = builderState.currentAgent || {};
+          const systemPrompt = `You are a helpful AI assistant that helps users refine and improve their AI agent configuration. The user has created an agent with the following settings:
+
+Name: ${agent.name || "AI Assistant"}
+Goal: ${agent.goal || "General assistance"}
+Personality: ${agent.personality || "Helpful and professional"}
+Tools: ${agent.tools?.join(", ") || "None"}
+Model: ${selectedModelId}
+
+Help the user make adjustments, answer questions about their agent, or suggest improvements. Be concise and helpful.`;
+
+          const messages = convertChatHistory(
+            builderState.messages.slice(-10), // Last 10 messages for context
+            systemPrompt
+          );
+          // Add the current user message
+          messages.push({ role: "user", content: userMessage });
+
+          const result = await runInference({
+            provider: selectedProvider,
+            model: selectedModelId || "",
+            messages,
+            temperature: 0.7,
+            maxTokens: 1024,
+          });
+
+          if (result.success && result.content) {
+            return result.content;
+          }
+          // Fallback if inference fails
+          return `I understand you want to refine your agent. ${result.error ? `(Note: ${result.error})` : ""}\n\nWhat specific aspect would you like to adjust?\n- Name or description\n- Goal or capabilities\n- Personality/communication style\n- Tools and integrations`;
+        }
+        // No connected provider fallback
+        return "Your agent is complete! To have a live conversation and refine it further, please connect a model provider (like xAI, OpenAI, or Anthropic) in the model selector above.";
 
       default:
         return "I'm here to help! Let me know what you'd like to adjust or if you're ready to proceed.";
