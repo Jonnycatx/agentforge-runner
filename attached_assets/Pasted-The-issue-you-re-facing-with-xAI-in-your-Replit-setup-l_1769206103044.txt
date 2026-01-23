@@ -1,0 +1,58 @@
+The issue you're facing with xAI in your Replit setup (likely within or connected to this AgentForge/Builder-like app) stems from the hardcoded test model for xAI in the connection testing logic:
+In your audit description:
+TypeScriptconst testModels = {
+  ...
+  xai: "grok-beta",
+};
+But grok-beta is no longer a valid/working model ID on the xAI API as of 2026. It consistently returns 404 Not Found errors (or "model does not exist or access denied") when used in real requests, including the minimal test inference call that happens when you click "Save & Connect".
+This is a known limitation listed in your own audit under "Known Issues & Considerations":
+
+xAI Model IDs:
+grok-3 returns 404 (not found)
+grok-beta works for testing
+Newer model IDs may not be active yet
+
+
+That note is now outdated — grok-beta no longer works for testing (it was probably deprecated/replaced sometime in late 2025 or early 2026 as Grok 4 / Grok 4.1 series rolled out).
+Current Working xAI Models (as of Jan 2026)
+From xAI's official docs and API references:
+
+grok-4 — Flagship reasoning model (256k context, supports text + image input, tool calling)
+grok-4-1-fast-reasoning (or similar variants like grok-4.1-fast-reasoning) — Optimized for agentic/tool-calling tasks, fast, often 2M context in some variants
+grok-4-fast / grok-4-1-fast (non-reasoning versions also exist)
+grok-code-fast-1 — Specialized for coding/agentic coding
+Older ones like grok-3 / grok-3-mini may still be accessible on some accounts but frequently 404 now
+grok-beta / grok-vision-beta → deprecated / removed, cause of your 404
+
+The exact list can vary slightly per team/account (check https://console.x.ai/team/default/models after login for your specific availability), but grok-beta is reliably broken across reports.
+What Needs to Be Done to Fix It
+
+Update the test model for xAI in your code
+In client/src/components/model-selector.tsx (or wherever testModels is defined), change:TypeScriptxai: "grok-beta",to one of these working ones (pick the cheapest/fastest for testing):TypeScriptxai: "grok-4",               // solid default, reasoning-focused
+// or
+xai: "grok-4-1-fast-reasoning",  // if you want agentic/fast
+// or
+xai: "grok-4-fast",          // speed-optimized variantRecommendation: Use "grok-4" — it's the most universally available flagship model right now and works in OpenAI-compatible calls.
+Re-test the connection
+Go back to the provider config dialog for xAI.
+Re-enter/paste your API key (ensure it's fresh from https://console.x.ai → API Keys).
+Keep Base URL as https://api.x.ai/v1 (or leave as default).
+Click Save & Connect.
+The backend proxy will now hit /chat/completions with the updated test model → should succeed and mark it as connected.
+
+If you want to use a different model for actual inference
+After connecting, in the model-selector UI, pick from the pre-configured list or use the "Custom Model Input" field to enter e.g. grok-4-1-fast-reasoning.
+Your inference.ts / proxy already normalizes to OpenAI format, so it should just work as long as the model ID exists on your account.
+
+Other quick checks if it still fails
+API key validity — Regenerate if needed; test manually with curl or a simple script:Bashcurl https://api.x.ai/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_KEY_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "grok-4",
+    "messages": [{"role": "user", "content": "Hi"}],
+    "max_tokens": 5
+  }'If this returns a completion → key & model are good.
+Account credits — xAI API isn't free; ensure your team has credits loaded in console.x.ai.
+Rate limits / team access — Some newer models require specific tiers.
+Proxy endpoint — Confirm your backend /api/inference/proxy handles xAI correctly (it uses OpenAI-compatible format, base https://api.x.ai/v1/chat/completions).
