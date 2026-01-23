@@ -99,7 +99,6 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     id: "openai",
     name: "OpenAI",
     type: "openai",
-    baseUrl: "https://api.openai.com/v1",
     models: [
       { id: "gpt-5.2-codex", name: "GPT-5.2 Codex", contextLength: 200000, costPer1kTokens: 0.003 },
       { id: "codex-mini-latest", name: "Codex Mini", contextLength: 200000, costPer1kTokens: 0.0015 },
@@ -123,7 +122,6 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     id: "anthropic",
     name: "Anthropic",
     type: "anthropic",
-    baseUrl: "https://api.anthropic.com/v1",
     models: [
       { id: "claude-sonnet-4-5-20250514", name: "Claude Sonnet 4.5", contextLength: 200000, costPer1kTokens: 0.003 },
       { id: "claude-opus-4-5-20250514", name: "Claude Opus 4.5", contextLength: 200000, costPer1kTokens: 0.015 },
@@ -145,7 +143,6 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     id: "groq",
     name: "Groq (Free)",
     type: "groq",
-    baseUrl: "https://api.groq.com/openai/v1",
     models: [
       { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", contextLength: 131072, costPer1kTokens: 0 },
       { id: "llama-3.3-70b-specdec", name: "Llama 3.3 70B SpecDec", contextLength: 8192, costPer1kTokens: 0 },
@@ -168,7 +165,6 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     id: "google",
     name: "Google AI",
     type: "google",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     models: [
       { id: "gemini-2.5-pro-preview-05-06", name: "Gemini 2.5 Pro", contextLength: 1048576, costPer1kTokens: 0.00125 },
       { id: "gemini-2.5-flash-preview-05-20", name: "Gemini 2.5 Flash", contextLength: 1048576, costPer1kTokens: 0 },
@@ -191,7 +187,6 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     id: "xai",
     name: "xAI",
     type: "xai",
-    baseUrl: "https://api.x.ai/v1",
     models: [
       { id: "grok-4", name: "Grok 4 (Recommended)", contextLength: 256000, costPer1kTokens: 0.003 },
       { id: "grok-4-latest", name: "Grok 4 Latest", contextLength: 256000, costPer1kTokens: 0.003 },

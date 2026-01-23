@@ -137,13 +137,24 @@ export const useAgentStore = create<AgentStore>()(
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AgentStore>;
+        // Old default URLs that should be cleared (backend has these hardcoded)
+        const oldDefaultUrls = [
+          "https://api.openai.com/v1",
+          "https://api.anthropic.com/v1",
+          "https://api.groq.com/openai/v1",
+          "https://generativelanguage.googleapis.com/v1beta",
+          "https://api.x.ai/v1",
+        ];
         // Merge providers: use default models but preserve user's API keys and connection status
         const mergedProviders = defaultProviders.map((defaultProvider) => {
           const cached = persisted.providers?.find((p) => p.id === defaultProvider.id);
+          // Clear baseUrl if it was an old default (not user-entered custom URL)
+          const cachedBaseUrl = cached?.baseUrl;
+          const shouldClearBaseUrl = cachedBaseUrl && oldDefaultUrls.includes(cachedBaseUrl);
           return {
             ...defaultProvider,
             apiKey: cached?.apiKey,
-            baseUrl: cached?.baseUrl || defaultProvider.baseUrl,
+            baseUrl: shouldClearBaseUrl ? undefined : cachedBaseUrl,
             isConnected: cached?.isConnected || false,
             // Always use latest models from defaults
             models: defaultProvider.models,
