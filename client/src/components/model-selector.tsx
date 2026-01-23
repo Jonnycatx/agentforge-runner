@@ -1,0 +1,361 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useAgentStore } from "@/lib/agent-store";
+import { Check, ChevronDown, Key, Settings, Zap, AlertCircle, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+interface ModelSelectorProps {
+  compact?: boolean;
+  onSelect?: (providerId: string, modelId: string) => void;
+}
+
+export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps) {
+  const {
+    providers,
+    selectedProviderId,
+    selectedModelId,
+    selectProvider,
+    selectModel,
+    updateProvider,
+  } = useAgentStore();
+
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [selectedConfigProvider, setSelectedConfigProvider] = useState<string | null>(null);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [baseUrlInput, setBaseUrlInput] = useState("");
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+
+  const selectedProvider = providers.find((p) => p.id === selectedProviderId);
+  const selectedModelObj = selectedProvider?.models?.find((m) => m.id === selectedModelId);
+
+  const handleProviderSelect = (providerId: string) => {
+    selectProvider(providerId);
+    const provider = providers.find((p) => p.id === providerId);
+    if (provider?.models && provider.models.length > 0) {
+      selectModel(provider.models[0].id);
+      onSelect?.(providerId, provider.models[0].id);
+    }
+  };
+
+  const handleModelSelect = (modelId: string) => {
+    selectModel(modelId);
+    if (selectedProviderId) {
+      onSelect?.(selectedProviderId, modelId);
+    }
+  };
+
+  const openConfigDialog = (providerId: string) => {
+    const provider = providers.find((p) => p.id === providerId);
+    if (provider) {
+      setSelectedConfigProvider(providerId);
+      setApiKeyInput(provider.apiKey || "");
+      setBaseUrlInput(provider.baseUrl || "");
+      setConfigDialogOpen(true);
+    }
+  };
+
+  const saveConfig = async () => {
+    if (!selectedConfigProvider) return;
+
+    setIsTestingConnection(true);
+    
+    // Simulate connection test
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    updateProvider(selectedConfigProvider, {
+      apiKey: apiKeyInput,
+      baseUrl: baseUrlInput,
+      isConnected: !!apiKeyInput,
+    });
+
+    setIsTestingConnection(false);
+    setConfigDialogOpen(false);
+  };
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <Select value={selectedProviderId || ""} onValueChange={handleProviderSelect}>
+          <SelectTrigger className="w-[140px]" data-testid="select-provider">
+            <SelectValue placeholder="Provider" />
+          </SelectTrigger>
+          <SelectContent>
+            {providers.map((provider) => (
+              <SelectItem key={provider.id} value={provider.id}>
+                <div className="flex items-center gap-2">
+                  {provider.isConnected && <Check className="w-3 h-3 text-green-500" />}
+                  {provider.name}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {selectedProvider && (
+          <Select value={selectedModelId || ""} onValueChange={handleModelSelect}>
+            <SelectTrigger className="w-[160px]" data-testid="select-model">
+              <SelectValue placeholder="Model" />
+            </SelectTrigger>
+            <SelectContent>
+              {selectedProvider.models?.map((model) => (
+                <SelectItem key={model.id} value={model.id}>
+                  {model.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => selectedProviderId && openConfigDialog(selectedProviderId)}
+          data-testid="button-config-model"
+        >
+          <Settings className="w-4 h-4" />
+        </Button>
+
+        <ConfigDialog
+          open={configDialogOpen}
+          onOpenChange={setConfigDialogOpen}
+          provider={providers.find((p) => p.id === selectedConfigProvider)}
+          apiKeyInput={apiKeyInput}
+          setApiKeyInput={setApiKeyInput}
+          baseUrlInput={baseUrlInput}
+          setBaseUrlInput={setBaseUrlInput}
+          isTestingConnection={isTestingConnection}
+          onSave={saveConfig}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium">Select Model Provider</h3>
+        <Badge variant="secondary" className="text-xs">
+          {providers.filter((p) => p.isConnected).length} connected
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {providers.map((provider) => (
+          <Card
+            key={provider.id}
+            className={`cursor-pointer transition-all hover-elevate ${
+              selectedProviderId === provider.id
+                ? "ring-2 ring-primary"
+                : ""
+            }`}
+            onClick={() => handleProviderSelect(provider.id)}
+            data-testid={`card-provider-${provider.id}`}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div className="font-medium text-sm">{provider.name}</div>
+                {provider.isConnected ? (
+                  <Badge variant="secondary" className="text-xs">
+                    <Check className="w-3 h-3 mr-1" />
+                    Connected
+                  </Badge>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openConfigDialog(provider.id);
+                    }}
+                    data-testid={`button-connect-${provider.id}`}
+                  >
+                    <Key className="w-3 h-3 mr-1" />
+                    Connect
+                  </Button>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {provider.models?.length || 0} models
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {selectedProvider && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="space-y-3"
+        >
+          <Label>Select Model</Label>
+          <div className="grid gap-2">
+            {selectedProvider.models?.map((model) => (
+              <Card
+                key={model.id}
+                className={`cursor-pointer transition-all hover-elevate ${
+                  selectedModelId === model.id ? "ring-2 ring-primary" : ""
+                }`}
+                onClick={() => handleModelSelect(model.id)}
+                data-testid={`card-model-${model.id}`}
+              >
+                <CardContent className="p-3 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-sm">{model.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {model.contextLength
+                        ? `${(model.contextLength / 1000).toFixed(0)}k context`
+                        : "Variable context"}
+                      {model.costPer1kTokens
+                        ? ` • $${model.costPer1kTokens}/1k tokens`
+                        : ""}
+                    </div>
+                  </div>
+                  {selectedModelId === model.id && (
+                    <Check className="w-4 h-4 text-primary" />
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      <ConfigDialog
+        open={configDialogOpen}
+        onOpenChange={setConfigDialogOpen}
+        provider={providers.find((p) => p.id === selectedConfigProvider)}
+        apiKeyInput={apiKeyInput}
+        setApiKeyInput={setApiKeyInput}
+        baseUrlInput={baseUrlInput}
+        setBaseUrlInput={setBaseUrlInput}
+        isTestingConnection={isTestingConnection}
+        onSave={saveConfig}
+      />
+    </div>
+  );
+}
+
+interface ConfigDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  provider?: { id: string; name: string; type: string; baseUrl?: string };
+  apiKeyInput: string;
+  setApiKeyInput: (value: string) => void;
+  baseUrlInput: string;
+  setBaseUrlInput: (value: string) => void;
+  isTestingConnection: boolean;
+  onSave: () => void;
+}
+
+function ConfigDialog({
+  open,
+  onOpenChange,
+  provider,
+  apiKeyInput,
+  setApiKeyInput,
+  baseUrlInput,
+  setBaseUrlInput,
+  isTestingConnection,
+  onSave,
+}: ConfigDialogProps) {
+  if (!provider) return null;
+
+  const isOllama = provider.type === "ollama";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="dialog-config-model">
+        <DialogHeader>
+          <DialogTitle>Configure {provider.name}</DialogTitle>
+          <DialogDescription>
+            {isOllama
+              ? "Connect to your local Ollama instance"
+              : "Enter your API key to connect this provider"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {!isOllama && (
+            <div className="space-y-2">
+              <Label htmlFor="api-key">API Key</Label>
+              <Input
+                id="api-key"
+                type="password"
+                placeholder="sk-..."
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                data-testid="input-api-key"
+              />
+              <p className="text-xs text-muted-foreground">
+                Your API key is stored locally and never sent to our servers.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="base-url">
+              Base URL {!isOllama && "(optional)"}
+            </Label>
+            <Input
+              id="base-url"
+              placeholder={provider.baseUrl || "https://api.example.com/v1"}
+              value={baseUrlInput}
+              onChange={(e) => setBaseUrlInput(e.target.value)}
+              data-testid="input-base-url"
+            />
+          </div>
+
+          {isOllama && (
+            <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg text-sm">
+              <AlertCircle className="w-4 h-4 mt-0.5 text-muted-foreground" />
+              <div className="text-muted-foreground">
+                Make sure Ollama is running on your machine. Default URL is{" "}
+                <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                  http://localhost:11434
+                </code>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={onSave} disabled={isTestingConnection} data-testid="button-save-config">
+            {isTestingConnection ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Testing...
+              </>
+            ) : (
+              "Save & Connect"
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
