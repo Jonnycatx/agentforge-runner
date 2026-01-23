@@ -1,0 +1,48 @@
+Priority Improvements & Next Phase Plan
+Focus on closing the dummy-proof usage gap first — users must go from build → desktop chat avatar seamlessly. Then add fun/virality.
+Phase 1: Real Inference + Persistence (2-3 weeks) – Make It Actually Work
+
+Switch from demo simulation to real client-side inference:
+In ChatInterface & AgentTestPane: Use fetch() directly to user-selected provider endpoints (OpenAI-compatible).
+Support Ollama auto-detect (health check localhost:11434).
+Fallback graceful banner: "Connect a model for real responses".
+
+Add authentication & persistent storage:
+Integrate Supabase (Auth + Postgres + Storage) — free tier.
+Migrate MemStorage → Supabase tables (users, agents, public gallery).
+Auto-sync agents across devices.
+
+Enhance ModelSelector:
+Custom "Add any endpoint".
+Badges: "Local & Free" for Ollama.
+Secure key storage (browser + Supabase edge functions if needed).
+
+
+Phase 2: Desktop Runner App (4-5 weeks) – The Magic Moment
+
+Build AgentForge Runner with Tauri:
+Cross-platform (Win/Mac/Linux, ~10MB).
+File association: Double-click .agentforge → opens avatar chat.
+System tray + floating draggable avatar widget.
+Global hotkey (Cmd/Ctrl + Shift + A) → chat window.
+Multi-agent support, avatar animations (thinking/idle/happy).
+First-run 3-step guide + auto-Ollama install prompt.
+
+New export format:
+Primary: ".agentforge" JSON bundle (config + prompt + avatar).
+Keep Python zip as advanced option.
+
+Mobile: Add PWA install prompt + basic Capacitor wrapper for iOS/Android sync.
+
+Phase 3: Fun, Virality & Polish (3-4 weeks)
+
+Avatar system: Picker in Builder + customization ("wise owl with hat").
+Voice mode: Web Speech API (input/output) in web + native in Runner.
+Delight: Confetti on complete, smooth animations, achievement badges.
+Virality:
+One-click share links (public demo with rate-limited fallback).
+Social share buttons + referral system.
+Embeddable chat widgets.
+
+Onboarding tour: Interactive (Shepherd.js) with video embeds.
+Community upgrades: Ratings, reviews, weekly featured, contests
