@@ -101,6 +101,7 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     type: "openai",
     baseUrl: "https://api.openai.com/v1",
     models: [
+      { id: "gpt-5.2-codex", name: "GPT-5.2 Codex", contextLength: 200000, costPer1kTokens: 0.003 },
       { id: "codex-mini-latest", name: "Codex Mini", contextLength: 200000, costPer1kTokens: 0.0015 },
       { id: "o3-pro", name: "o3 Pro", contextLength: 200000, costPer1kTokens: 0.02 },
       { id: "o3", name: "o3", contextLength: 200000, costPer1kTokens: 0.01 },
