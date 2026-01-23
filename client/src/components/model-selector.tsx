@@ -140,7 +140,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
         anthropic: "claude-3-haiku-20240307",
         groq: "llama3-8b-8192",
         google: "gemini-1.5-flash",
-        xai: "grok-3",
+        xai: "grok-beta",
       };
 
       const testModel = testModels[provider.type];
