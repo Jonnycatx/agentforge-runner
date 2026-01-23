@@ -548,6 +548,51 @@ function ConfigDialog({
             </div>
           ) : (
             <>
+              {/* How to get API key guide */}
+              <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                <h4 className="font-medium text-sm">How to get your API key</h4>
+                {provider.type === "openai" && (
+                  <ol className="text-sm text-muted-foreground space-y-1">
+                    <li>1. Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener" className="text-primary underline">platform.openai.com/api-keys</a></li>
+                    <li>2. Sign in or create an account</li>
+                    <li>3. Click "Create new secret key"</li>
+                    <li>4. Copy and paste it below</li>
+                  </ol>
+                )}
+                {provider.type === "anthropic" && (
+                  <ol className="text-sm text-muted-foreground space-y-1">
+                    <li>1. Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" className="text-primary underline">console.anthropic.com/settings/keys</a></li>
+                    <li>2. Sign in or create an account</li>
+                    <li>3. Click "Create Key"</li>
+                    <li>4. Copy and paste it below</li>
+                  </ol>
+                )}
+                {provider.type === "groq" && (
+                  <ol className="text-sm text-muted-foreground space-y-1">
+                    <li>1. Go to <a href="https://console.groq.com/keys" target="_blank" rel="noopener" className="text-primary underline">console.groq.com/keys</a></li>
+                    <li>2. Sign in with Google or GitHub (free)</li>
+                    <li>3. Click "Create API Key"</li>
+                    <li>4. Copy and paste it below</li>
+                  </ol>
+                )}
+                {provider.type === "google" && (
+                  <ol className="text-sm text-muted-foreground space-y-1">
+                    <li>1. Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="text-primary underline">aistudio.google.com/apikey</a></li>
+                    <li>2. Sign in with your Google account</li>
+                    <li>3. Click "Create API key"</li>
+                    <li>4. Copy and paste it below</li>
+                  </ol>
+                )}
+                {provider.type === "xai" && (
+                  <ol className="text-sm text-muted-foreground space-y-1">
+                    <li>1. Go to <a href="https://console.x.ai" target="_blank" rel="noopener" className="text-primary underline">console.x.ai</a></li>
+                    <li>2. Sign in with your X account</li>
+                    <li>3. Navigate to API Keys section</li>
+                    <li>4. Create and copy your key below</li>
+                  </ol>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="api-key">API Key</Label>
                 <Input
@@ -559,7 +604,7 @@ function ConfigDialog({
                   data-testid="input-api-key"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Stored in your browser only. API calls are made directly from your browser to the provider.
+                  Stored in your browser only. Never sent to our servers.
                 </p>
               </div>
 
