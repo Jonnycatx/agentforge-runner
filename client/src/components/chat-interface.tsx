@@ -14,8 +14,17 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ onAgentUpdate }: ChatInterfaceProps) {
-  const { builderState, addBuilderMessage, setBuilderStep, updateBuilderAgent, providers, selectedProviderId, selectedModelId } =
-    useAgentStore();
+  const { 
+    builderState, 
+    addBuilderMessage, 
+    setBuilderStep, 
+    updateBuilderAgent, 
+    providers, 
+    selectedProviderId, 
+    selectedModelId,
+    buildStatus,
+    setBuildStatus
+  } = useAgentStore();
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -110,13 +119,45 @@ export function ChatInterface({ onAgentUpdate }: ChatInterfaceProps) {
           if (wantsToBuild) {
             // Parse the last AI response to extract the suggested config
             const lastAiMessage = builderState.messages.filter(m => m.role === "assistant").pop();
-            if (lastAiMessage) {
+            if (lastAiMessage && selectedProvider) {
               const extractedConfig = parseAgentConfigFromMessage(lastAiMessage.content);
               if (extractedConfig.name || extractedConfig.goal) {
                 // Apply the extracted config
+                setBuildStatus("building");
                 updateBuilderAgent(extractedConfig);
                 onAgentUpdate?.({ ...extractedConfig, updated: true });
-                return `I've updated your agent configuration!\n\n**${extractedConfig.name || agent.name}** is now configured with:\n- **Goal:** ${extractedConfig.goal || agent.goal}\n- **Personality:** ${extractedConfig.personality || agent.personality}\n- **Tools:** ${extractedConfig.tools?.join(", ") || agent.tools?.join(", ") || "None"}\n\nYou can see the updated config in the Code Preview panel. Would you like to test it in the Test tab, or make any more adjustments?`;
+                
+                // Now run an automatic test
+                setBuildStatus("testing");
+                const testSystemPrompt = buildSystemPrompt({
+                  ...agent,
+                  ...extractedConfig,
+                });
+                
+                try {
+                  const testResult = await runInference({
+                    provider: selectedProvider,
+                    model: selectedModelId || "",
+                    messages: [
+                      { role: "system", content: testSystemPrompt },
+                      { role: "user", content: "Hello! Can you briefly introduce yourself and what you can help with?" }
+                    ],
+                    temperature: 0.7,
+                    maxTokens: 500,
+                  });
+                  
+                  if (testResult.success && testResult.content) {
+                    setBuildStatus("ready");
+                    return `**Build Complete!** Your agent passed the test.\n\n**Agent:** ${extractedConfig.name || agent.name}\n**Goal:** ${extractedConfig.goal || agent.goal}\n**Tools:** ${extractedConfig.tools?.join(", ") || agent.tools?.join(", ") || "None"}\n\n**Test Response:**\n> ${testResult.content.slice(0, 300)}${testResult.content.length > 300 ? "..." : ""}\n\nYour agent is ready! You can:\n- **Test** it more in the Test tab\n- **Export** or **Download** the code\n- **Save** to your library\n- **Deploy** it live\n\nOr tell me if you'd like to make any adjustments.`;
+                  } else {
+                    setBuildStatus("test_failed", testResult.error);
+                    return `**Build Applied** but the test encountered an issue:\n\n**Error:** ${testResult.error || "Unknown error"}\n\nThe configuration has been saved. Please check:\n- Is your API key valid and has credits?\n- Is the model ${selectedModelId} available on your account?\n\nWould you like me to try a different configuration, or would you like to test manually in the Test tab?`;
+                  }
+                } catch (testError) {
+                  const errorMsg = testError instanceof Error ? testError.message : "Test failed";
+                  setBuildStatus("test_failed", errorMsg);
+                  return `**Build Applied** but the automatic test failed:\n\n**Error:** ${errorMsg}\n\nThe configuration is saved. You can try testing manually in the Test tab, or tell me what you'd like to adjust.`;
+                }
               }
             }
             return "I've noted your request. Could you describe what you'd like your agent to do, and I'll create a configuration for you?";

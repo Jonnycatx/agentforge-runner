@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware";
 import type { AgentConfig, ModelProvider, ChatMessage, BuilderState } from "@shared/schema";
 import { defaultProviders } from "@shared/schema";
 
+export type BuildStatus = "idle" | "building" | "testing" | "test_passed" | "test_failed" | "ready";
+
 interface AgentStore {
   // Model providers
   providers: ModelProvider[];
@@ -28,6 +30,11 @@ interface AgentStore {
   setBuilderStep: (step: BuilderState["step"]) => void;
   resetBuilder: () => void;
   updateBuilderAgent: (updates: Partial<AgentConfig>) => void;
+
+  // Build status
+  buildStatus: BuildStatus;
+  buildError: string | null;
+  setBuildStatus: (status: BuildStatus, error?: string | null) => void;
 }
 
 const initialBuilderState: BuilderState = {
@@ -126,6 +133,11 @@ export const useAgentStore = create<AgentStore>()(
             },
           },
         })),
+
+      // Build status
+      buildStatus: "idle" as BuildStatus,
+      buildError: null,
+      setBuildStatus: (status, error = null) => set({ buildStatus: status, buildError: error }),
     }),
     {
       name: "agentforge-storage",
