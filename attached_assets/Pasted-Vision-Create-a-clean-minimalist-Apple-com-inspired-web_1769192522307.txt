@@ -1,0 +1,154 @@
+Vision
+Create a clean, minimalist, Apple.com-inspired web app called AgentForge that serves as a zero-central-cost portal for users to conversationally build, customize, and deploy AI agents. The platform itself hosts no models or inference – all compute happens via models that users connect themselves (via API keys, local Ollama instances, or shared community endpoints). This keeps hosting costs effectively zero (static hosting + minimal serverless backend). The experience must be "dummy-proof": users arrive, type a plain-English request like "I need an agent that can help migrate an old website to a new one", and a conversational builder agent guides them step-by-step to a fully configured, deployable agent.
+Core Principles
+
+Zero central hosting cost for inference: Never run models on central servers. All inference routes through user-provided model endpoints (OpenAI/Anthropic/Groq/Claude/Grok API keys, local Ollama/LM Studio, Hugging Face Inference endpoints, or community-shared public endpoints).
+Apple.com aesthetic: Clean whitespace, high-quality typography (system fonts or Inter/San Francisco), subtle animations, hero sections with bold messaging, no clutter.
+Cursor/Replit-inspired workflow: Conversational agent composer + live code preview/editor + one-click "Run" that executes using the user's chosen model.
+Maximum user-friendliness: No coding required for 90% of use cases. Natural language → guided conversation → auto-generated agent config/code.
+
+High-Level Architecture
+Frontend (90% of the app)
+
+Single-page application (SPA) built with Next.js 14+ (App Router) hosted on Vercel (free tier sufficient – static + edge functions).
+State management: Zustand or Jotai (lightweight).
+UI library: Tailwind CSS + shadcn/ui components (customized for Apple-like minimalism).
+Real-time chat/editor: Use Tiptap or CodeMirror for the code preview pane, split-view like Cursor (chat on left, code preview on right).
+Authentication: Clerk or Supabase Auth (free tier) – email magic link or OAuth (Google/GitHub).
+
+Backend (minimal, serverless)
+
+Supabase (free/postgres tier) or Firebase for:
+User accounts
+Storing agent configs (JSON/YAML, not code execution)
+Public agent gallery (community-shared agents)
+Rate-limiting abuse
+
+All inference calls happen client-side via the browser (fetch to user-provided endpoints/API keys stored encrypted in browser localStorage or Supabase edge functions).
+No central GPU/compute – if a user wants to use a local model (Ollama), provide a small browser extension or desktop bridge (Electron app as optional companion).
+
+Model Integration Strategy (The "zero-cost" key)
+
+Users connect their own model providers → inference billed to them or run locally.
+Pre-configured providers (one-click setup):
+OpenAI (GPT-4o, GPT-4o-mini)
+Anthropic (Claude 3.5 Sonnet)
+Groq (Llama 3.1 70B/405B)
+Google Gemini
+xAI Grok
+Local: Ollama (detect running instance via localhost:11434 health check)
+Community: Public Hugging Face Inference API endpoints or shared Ollama public relays (if any exist)
+
+Custom option: "Add any model" → user pastes base URL + API key format (supports OpenAI-compatible endpoints like vLLM, LM Studio, Text Generation WebUI).
+Model selector UI: Dropdown like Cursor's model picker – shows cost estimates, speed, context length.
+
+Key Pages & User Flows
+
+Landing / Hero Page (apple.com style)
+Full-screen hero with tagline: "Build powerful AI agents with natural language. No code required."
+Subheadline: "Powered by your models. Zero platform fees."
+Animated screenshots or short video loop of the conversational builder.
+CTA: "Start building for free" → opens the Builder without login (guest mode, saves locally).
+
+Agent Builder Dashboard (main workspace, like Cursor composer)
+Split view:
+Left: Chat interface with the Builder Agent (a system-prompted instance of the user's chosen model).
+Right: Live preview of generated agent code/config + test chat pane.
+
+Default Builder Agent prompt (hardcoded, refined iteratively):textYou are AgentForge Builder, an expert AI agent architect. Guide the user conversationally to define their agent's goal, personality, tools, knowledge, and model. Ask clarifying questions one at a time. When ready, generate clean, modular agent code (LangChain/LlamaIndex style) that the user can run or export. Never assume – always confirm.
+Example flow (exactly as user described):
+User: "I need to build an assistant."
+Builder: "Great! What kind of agent do you need? (e.g., web design, data analysis, personal assistant)"
+User: "I need an agent experienced in web design."
+Builder: "Perfect. I'll build a high-end web design agent with tools for HTML/CSS/JS generation, image analysis, Figma import, etc. What is the main task or goal for this agent?"
+User: "Migrate and update data from an old website to a new one."
+Builder continues clarifying → selects appropriate tools → generates code.
+
+
+Model/Agent Panel
+Sidebar or top-bar selector like Cursor.
+"Choose model for Builder" and "Choose model for your new Agent".
+Pre-configured list + "Add custom" button.
+For the final agent: User can choose different model than the builder (e.g., build with Claude, run with Groq).
+
+Agent Gallery / Community
+Public page of user-shared agents (opt-in share).
+Fork/remix like Replit.
+Run any public agent instantly using your own connected model.
+
+Export & Run
+One-click export: Download as ZIP (LangChain/LlamaIndex Python project), or run in-browser sandbox (using WebAssembly Pyodide for simple agents).
+"Deploy" options: Generate Vercel/Netlify template, or Docker for local/Ollama.
+
+
+Tech Stack Summary
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LayerTechnologyReasonFrontendNext.js 14 (App Router), TypeScript, Tailwind + shadcn/uiFast, SEO-friendly, Apple-like design easyAuth/DBSupabase (Auth + Postgres)Free tier generous, real-time possibleEditorCodeMirror 6 + TiptapBest code + chat experienceAgent FrameworkGenerate LangChain.js or LlamaIndex.ts codeMost flexible, widely usedInferenceClient-side fetch to user endpointsZero central costHostingVercel (frontend) + SupabaseBoth have free tiers that scale
+Development Phases & Team Assignments
+Phase 1 (2-3 weeks) – MVP Core
+
+Designers (2): Wireframes + full UI kit (Apple-inspired). Hero, builder split-view, model selector.
+Frontend devs (3): Next.js scaffold, auth, landing page, basic chat interface.
+Full-stack dev (1): Supabase setup, agent config storage.
+
+Phase 2 (3-4 weeks) – Conversational Builder
+
+Backend/AI dev (2): Refine builder system prompt, implement client-side inference routing.
+Frontend devs: Live code preview, model picker with pre-configured + custom.
+Test rigorously with real user scenarios (web design migration, coding helper, research agent).
+
+Phase 3 (2-3 weeks) – Polish & Community
+
+Add agent gallery, sharing, forking.
+Mobile-responsive (PWA).
+Onboarding tour + example templates.
+
+Phase 4 – Launch & Iterate
+
+Analytics (PostHog self-hosted).
+Feedback form directly in builder chat.
+
+Risks & Mitigations
+
+API key security: Never send keys server-side; store only in browser. Warn users clearly.
+Rate limiting: Client-side only, plus Supabase row limits.
+Abuse: Basic profanity/filtering + report button.
