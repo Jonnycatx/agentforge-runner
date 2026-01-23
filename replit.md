@@ -84,3 +84,6 @@ The app runs on port 5000 with both frontend and backend served together.
 - **Featured Agents Section**: Landing page now shows 6 featured templates with click-to-build
 - **Enhanced Gallery**: Category filters (Coding, Design, Research, etc.), sort options (Recent, Name, Tools)
 - **One-Click Remix**: Fork button navigates directly to Builder with agent pre-loaded
+- **Deployment Modal**: Post-build modal with 3 options - Run in Browser, Download & Run Locally, Share
+- **Export Package**: Complete .zip download with Python script, config, requirements.txt, run scripts, and README
+- **Ollama Setup Guide**: Built-in tips for setting up free local inference with Ollama
