@@ -390,12 +390,19 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
               >
                 <CardContent className="p-3 flex items-center justify-between">
                   <div>
-                    <div className="font-medium text-sm">{model.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{model.name}</span>
+                      {model.costPer1kTokens === 0 && (
+                        <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-600 dark:text-green-400">
+                          Free
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       {model.contextLength
                         ? `${(model.contextLength / 1000).toFixed(0)}k context`
                         : "Variable context"}
-                      {model.costPer1kTokens
+                      {model.costPer1kTokens && model.costPer1kTokens > 0
                         ? ` • $${model.costPer1kTokens}/1k tokens`
                         : ""}
                     </div>

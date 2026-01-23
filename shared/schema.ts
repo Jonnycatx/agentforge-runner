@@ -104,6 +104,8 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
       { id: "gpt-4o", name: "GPT-4o", contextLength: 128000, costPer1kTokens: 0.005 },
       { id: "gpt-4o-mini", name: "GPT-4o Mini", contextLength: 128000, costPer1kTokens: 0.00015 },
       { id: "gpt-4-turbo", name: "GPT-4 Turbo", contextLength: 128000, costPer1kTokens: 0.01 },
+      { id: "gpt-4", name: "GPT-4", contextLength: 8192, costPer1kTokens: 0.03 },
+      { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", contextLength: 16385, costPer1kTokens: 0.0005 },
     ],
   },
   {
@@ -112,20 +114,24 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     type: "anthropic",
     baseUrl: "https://api.anthropic.com/v1",
     models: [
+      { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", contextLength: 200000, costPer1kTokens: 0.003 },
       { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", contextLength: 200000, costPer1kTokens: 0.003 },
       { id: "claude-3-opus-20240229", name: "Claude 3 Opus", contextLength: 200000, costPer1kTokens: 0.015 },
+      { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", contextLength: 200000, costPer1kTokens: 0.0008 },
       { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku", contextLength: 200000, costPer1kTokens: 0.00025 },
     ],
   },
   {
     id: "groq",
-    name: "Groq",
+    name: "Groq (Free)",
     type: "groq",
     baseUrl: "https://api.groq.com/openai/v1",
     models: [
-      { id: "llama-3.1-70b-versatile", name: "Llama 3.1 70B", contextLength: 131072, costPer1kTokens: 0.00059 },
-      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", contextLength: 131072, costPer1kTokens: 0.00005 },
-      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", contextLength: 32768, costPer1kTokens: 0.00024 },
+      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", contextLength: 131072, costPer1kTokens: 0 },
+      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", contextLength: 131072, costPer1kTokens: 0 },
+      { id: "llama3-70b-8192", name: "Llama 3 70B", contextLength: 8192, costPer1kTokens: 0 },
+      { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", contextLength: 32768, costPer1kTokens: 0 },
+      { id: "gemma2-9b-it", name: "Gemma 2 9B", contextLength: 8192, costPer1kTokens: 0 },
     ],
   },
   {
@@ -134,8 +140,11 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     type: "google",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     models: [
+      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", contextLength: 1048576, costPer1kTokens: 0 },
       { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", contextLength: 2097152, costPer1kTokens: 0.00125 },
       { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", contextLength: 1048576, costPer1kTokens: 0.000075 },
+      { id: "gemini-1.5-flash-8b", name: "Gemini 1.5 Flash 8B", contextLength: 1048576, costPer1kTokens: 0 },
+      { id: "gemini-1.0-pro", name: "Gemini 1.0 Pro", contextLength: 32768, costPer1kTokens: 0.0005 },
     ],
   },
   {
@@ -144,6 +153,10 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     type: "xai",
     baseUrl: "https://api.x.ai/v1",
     models: [
+      { id: "grok-3", name: "Grok 3", contextLength: 131072, costPer1kTokens: 0.003 },
+      { id: "grok-3-fast", name: "Grok 3 Fast", contextLength: 131072, costPer1kTokens: 0.005 },
+      { id: "grok-2", name: "Grok 2", contextLength: 131072, costPer1kTokens: 0.002 },
+      { id: "grok-2-mini", name: "Grok 2 Mini", contextLength: 131072, costPer1kTokens: 0.0002 },
       { id: "grok-beta", name: "Grok Beta", contextLength: 131072, costPer1kTokens: 0.005 },
     ],
   },
@@ -153,9 +166,11 @@ export const defaultProviders: Omit<ModelProvider, "apiKey" | "isConnected">[] =
     type: "ollama",
     baseUrl: "http://localhost:11434",
     models: [
-      { id: "llama3.1", name: "Llama 3.1", contextLength: 131072 },
-      { id: "codellama", name: "Code Llama", contextLength: 16384 },
-      { id: "mistral", name: "Mistral", contextLength: 32768 },
+      { id: "llama3.2", name: "Llama 3.2", contextLength: 131072, costPer1kTokens: 0 },
+      { id: "llama3.1", name: "Llama 3.1", contextLength: 131072, costPer1kTokens: 0 },
+      { id: "mistral", name: "Mistral", contextLength: 32768, costPer1kTokens: 0 },
+      { id: "codellama", name: "Code Llama", contextLength: 16384, costPer1kTokens: 0 },
+      { id: "phi3", name: "Phi-3", contextLength: 4096, costPer1kTokens: 0 },
     ],
   },
 ];
