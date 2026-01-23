@@ -13,6 +13,7 @@ import { ModelSelector } from "@/components/model-selector";
 import { ChatInterface } from "@/components/chat-interface";
 import { CodePreview } from "@/components/code-preview";
 import { TemplateGallery } from "@/components/template-gallery";
+import { DeploymentModal } from "@/components/deployment-modal";
 import { useAgentStore } from "@/lib/agent-store";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { AgentTemplate } from "@/lib/templates";
@@ -24,7 +25,8 @@ import {
   ChevronDown,
   Zap,
   LayoutTemplate,
-  MessageSquare
+  MessageSquare,
+  Rocket
 } from "lucide-react";
 import {
   Sheet,
@@ -59,6 +61,7 @@ export default function Builder() {
   const [modelSectionOpen, setModelSectionOpen] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
+  const [deployModalOpen, setDeployModalOpen] = useState(false);
 
   useEffect(() => {
     document.title = "Agent Builder | AgentForge";
@@ -217,18 +220,28 @@ export default function Builder() {
               </Button>
 
               {builderState.step === "complete" && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  data-testid="button-save-agent"
-                >
-                  <Save className="w-4 h-4 mr-1" />
-                  <span className="hidden sm:inline">
-                    {isSaving ? "Saving..." : "Save"}
-                  </span>
-                </Button>
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    data-testid="button-save-agent"
+                  >
+                    <Save className="w-4 h-4 mr-1" />
+                    <span className="hidden sm:inline">
+                      {isSaving ? "Saving..." : "Save"}
+                    </span>
+                  </Button>
+                  <Button 
+                    size="sm"
+                    onClick={() => setDeployModalOpen(true)}
+                    data-testid="button-deploy-agent"
+                  >
+                    <Rocket className="w-4 h-4 mr-1" />
+                    <span className="hidden sm:inline">Deploy</span>
+                  </Button>
+                </>
               )}
 
               <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
@@ -329,6 +342,11 @@ export default function Builder() {
           </div>
         </div>
       </main>
+
+      <DeploymentModal 
+        open={deployModalOpen} 
+        onOpenChange={setDeployModalOpen} 
+      />
     </div>
   );
 }
