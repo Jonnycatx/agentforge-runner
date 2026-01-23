@@ -168,7 +168,16 @@ export async function registerRoutes(
 
       // OpenAI-compatible providers (OpenAI, Groq, xAI)
       if (["openai", "groq", "xai"].includes(provider)) {
-        const endpoint = baseUrl || endpoints[provider];
+        let endpoint: string;
+        if (baseUrl) {
+          // If custom baseUrl provided, ensure it has the chat/completions path
+          const cleanBase = baseUrl.replace(/\/+$/, "");
+          endpoint = cleanBase.includes("/chat/completions") 
+            ? cleanBase 
+            : `${cleanBase}/chat/completions`;
+        } else {
+          endpoint = endpoints[provider];
+        }
         
         const response = await fetch(endpoint, {
           method: "POST",
