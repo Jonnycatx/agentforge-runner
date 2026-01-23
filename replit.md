@@ -77,3 +77,10 @@ The app runs on port 5000 with both frontend and backend served together.
 - Code preview with JSON/Python export
 - Model selector with API key configuration
 - Gallery page with sample agents
+
+### Latest Updates
+- **Template Gallery**: 12 starter templates (Web Designer, Code Reviewer, Research Assistant, etc.) with one-click loading
+- **Live Agent Testing Pane**: Test your agent directly in the builder with a dedicated Test tab
+- **Featured Agents Section**: Landing page now shows 6 featured templates with click-to-build
+- **Enhanced Gallery**: Category filters (Coding, Design, Research, etc.), sort options (Recent, Name, Tools)
+- **One-Click Remix**: Fork button navigates directly to Builder with agent pre-loaded
