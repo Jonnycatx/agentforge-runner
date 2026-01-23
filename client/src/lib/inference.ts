@@ -271,12 +271,14 @@ export async function runInference(options: InferenceOptions): Promise<Inference
       );
 
     case "anthropic":
-      return callAnthropic(
+      return callViaProxy(
+        "anthropic",
         provider.apiKey || "",
         model,
         messages,
         temperature,
-        maxTokens
+        maxTokens,
+        provider.baseUrl
       );
 
     case "ollama":

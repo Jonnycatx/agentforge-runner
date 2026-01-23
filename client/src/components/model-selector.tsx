@@ -134,65 +134,52 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
         return { success: false, error: "API key is required" };
       }
 
-      if (provider.type === "openai") {
-        if (baseUrl) {
-          return { success: true, error: "custom_endpoint" };
+      // Use backend proxy to test all providers with a real API call
+      const testModels: Record<string, string> = {
+        openai: "gpt-4o-mini",
+        anthropic: "claude-3-haiku-20240307",
+        groq: "llama3-8b-8192",
+        google: "gemini-1.5-flash",
+        xai: "grok-3",
+      };
+
+      const testModel = testModels[provider.type];
+      if (!testModel) {
+        return { success: apiKey.length > 0 };
+      }
+
+      try {
+        const response = await fetch("/api/inference/proxy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: provider.type,
+            apiKey,
+            model: testModel,
+            messages: [{ role: "user", content: "Hi" }],
+            temperature: 0.1,
+            maxTokens: 5,
+            baseUrl,
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          return { success: false, error: data.error || `Connection failed (${response.status})` };
         }
-        try {
-          const response = await fetch("https://api.openai.com/v1/models", {
-            headers: { Authorization: `Bearer ${apiKey}` },
-            signal: AbortSignal.timeout(5000),
-          });
-          if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            return { success: false, error: data.error?.message || "Invalid API key" };
-          }
+
+        const data = await response.json();
+        if (data.choices?.[0]?.message?.content) {
           return { success: true };
-        } catch (e) {
-          return { success: false, error: "Could not connect to OpenAI" };
         }
+        return { success: false, error: "Unexpected response from API" };
+      } catch (e) {
+        if (e instanceof Error && e.name === "TimeoutError") {
+          return { success: false, error: "Connection timed out. Please try again." };
+        }
+        return { success: false, error: e instanceof Error ? e.message : "Connection test failed" };
       }
-
-      if (provider.type === "anthropic") {
-        if (!apiKey.startsWith("sk-ant-")) {
-          return { success: false, error: "Invalid Anthropic API key format (should start with sk-ant-)" };
-        }
-        return { success: true };
-      }
-
-      if (provider.type === "groq") {
-        if (baseUrl) {
-          return { success: true, error: "custom_endpoint" };
-        }
-        try {
-          const response = await fetch("https://api.groq.com/openai/v1/models", {
-            headers: { Authorization: `Bearer ${apiKey}` },
-            signal: AbortSignal.timeout(5000),
-          });
-          if (!response.ok) {
-            return { success: false, error: "Invalid Groq API key" };
-          }
-          return { success: true };
-        } catch (e) {
-          return { success: false, error: "Could not connect to Groq" };
-        }
-      }
-
-      if (provider.type === "google") {
-        if (apiKey.length < 20) {
-          return { success: false, error: "Invalid Google API key" };
-        }
-        return { success: true };
-      }
-
-      if (provider.type === "xai") {
-        if (apiKey.length < 10) {
-          return { success: false, error: "Invalid xAI API key" };
-        }
-        return { success: true };
-      }
-
-      return { success: apiKey.length > 0 };
     } catch (error) {
       return { 
         success: false, 

@@ -200,6 +200,47 @@ export async function registerRoutes(
         return res.json(data);
       }
 
+      // Anthropic
+      if (provider === "anthropic") {
+        const systemMessage = messages.find((m: any) => m.role === "system");
+        const chatMessages = messages.filter((m: any) => m.role !== "system");
+
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: maxTokens || 4096,
+            temperature: temperature || 0.7,
+            system: systemMessage?.content || "",
+            messages: chatMessages.map((m: any) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorMessage = `API error (${response.status})`;
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.error?.message || errorText;
+          } catch {
+            errorMessage = errorText || `HTTP ${response.status}`;
+          }
+          return res.status(response.status).json({ error: errorMessage });
+        }
+
+        const data = await response.json();
+        const content = data.content?.[0]?.text || "";
+        return res.json({ choices: [{ message: { content } }] });
+      }
+
       // Google Gemini
       if (provider === "google") {
         const systemMessage = messages.find((m: any) => m.role === "system");
