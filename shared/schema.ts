@@ -2,20 +2,8 @@ import { pgTable, text, varchar, jsonb, timestamp, boolean } from "drizzle-orm/p
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// User table
-export const users = pgTable("users", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-});
-
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
-
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+// Re-export auth models (users, sessions)
+export * from "./models/auth";
 
 // Model Provider configuration
 export const modelProviderSchema = z.object({
@@ -38,6 +26,7 @@ export type ModelProvider = z.infer<typeof modelProviderSchema>;
 // Agent configuration schema
 export const agentConfigSchema = z.object({
   id: z.string(),
+  userId: z.string().optional(),
   name: z.string(),
   description: z.string().optional(),
   goal: z.string(),
@@ -59,6 +48,7 @@ export type AgentConfig = z.infer<typeof agentConfigSchema>;
 // Agent table for persistence
 export const agents = pgTable("agents", {
   id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 255 }),
   name: text("name").notNull(),
   description: text("description"),
   goal: text("goal").notNull(),
