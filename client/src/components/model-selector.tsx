@@ -329,7 +329,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
         </Badge>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {providers.map((provider) => (
           <Card
             key={provider.id}
@@ -341,10 +341,16 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
             onClick={() => handleProviderSelect(provider.id)}
             data-testid={`card-provider-${provider.id}`}
           >
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between mb-2 gap-1">
-                <div className="font-medium text-sm">{provider.name}</div>
-                {getProviderBadge(provider) || (
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <div className="font-medium text-sm truncate">{provider.name}</div>
+                {getProviderBadge(provider)}
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {provider.models?.length || 0} models
+                </div>
+                {!provider.isConnected && provider.type !== "ollama" && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -355,13 +361,9 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
                     }}
                     data-testid={`button-connect-${provider.id}`}
                   >
-                    <Key className="w-3 h-3 mr-1" />
-                    Connect
+                    <Key className="w-3 h-3" />
                   </Button>
                 )}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {provider.models?.length || 0} models
               </div>
             </CardContent>
           </Card>
