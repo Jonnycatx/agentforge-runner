@@ -22,7 +22,6 @@ import {
   RotateCcw, 
   Save,
   Sparkles,
-  ChevronDown,
   Zap,
   LayoutTemplate,
   MessageSquare,
@@ -36,11 +35,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
@@ -61,7 +55,6 @@ export default function Builder() {
   } = useAgentStore();
   const { toast } = useToast();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [modelSectionOpen, setModelSectionOpen] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showTemplates, setShowTemplates] = useState(true);
   const [deployModalOpen, setDeployModalOpen] = useState(false);
@@ -290,24 +283,15 @@ export default function Builder() {
                 </SheetTrigger>
                 <SheetContent data-testid="sheet-settings">
                   <SheetHeader>
-                    <SheetTitle>Builder Settings</SheetTitle>
+                    <SheetTitle>Settings</SheetTitle>
                     <SheetDescription>
-                      Configure your model providers and preferences
+                      Connect your AI providers
                     </SheetDescription>
                   </SheetHeader>
-                  <div className="mt-6 space-y-6">
-                    <Collapsible 
-                      open={modelSectionOpen} 
-                      onOpenChange={setModelSectionOpen}
-                    >
-                      <CollapsibleTrigger className="flex items-center justify-between w-full py-2">
-                        <span className="font-medium">Model Providers</span>
-                        <ChevronDown className={`w-4 h-4 transition-transform ${modelSectionOpen ? "rotate-180" : ""}`} />
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="pt-4">
-                        <ModelSelector />
-                      </CollapsibleContent>
-                    </Collapsible>
+                  <div className="mt-6">
+                    <ModelSelector onSelect={(providerId, modelId) => {
+                      updateBuilderAgent({ modelId, providerId });
+                    }} />
                   </div>
                 </SheetContent>
               </Sheet>
