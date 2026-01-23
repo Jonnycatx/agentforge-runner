@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -20,7 +19,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAgentStore } from "@/lib/agent-store";
-import { Check, ChevronDown, Key, Settings, Zap, AlertCircle, Loader2 } from "lucide-react";
+import { checkOllamaHealth, getOllamaModels } from "@/lib/inference";
+import { Check, ChevronDown, Key, Settings, Zap, AlertCircle, Loader2, Cpu, Globe, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ModelSelectorProps {
@@ -43,6 +43,31 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [baseUrlInput, setBaseUrlInput] = useState("");
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<"checking" | "available" | "unavailable">("checking");
+
+  useEffect(() => {
+    checkOllamaStatus();
+  }, []);
+
+  const checkOllamaStatus = async () => {
+    setOllamaStatus("checking");
+    const isAvailable = await checkOllamaHealth();
+    setOllamaStatus(isAvailable ? "available" : "unavailable");
+    
+    if (isAvailable) {
+      const ollamaProvider = providers.find(p => p.type === "ollama");
+      if (ollamaProvider) {
+        const models = await getOllamaModels();
+        if (models.length > 0) {
+          updateProvider(ollamaProvider.id, {
+            isConnected: true,
+            models: models.map(m => ({ id: m, name: m })),
+          });
+        }
+      }
+    }
+  };
 
   const selectedProvider = providers.find((p) => p.id === selectedProviderId);
   const selectedModelObj = selectedProvider?.models?.find((m) => m.id === selectedModelId);
@@ -69,26 +94,121 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
       setSelectedConfigProvider(providerId);
       setApiKeyInput(provider.apiKey || "");
       setBaseUrlInput(provider.baseUrl || "");
+      setConnectionError(null);
       setConfigDialogOpen(true);
+    }
+  };
+
+  const testConnection = async (provider: typeof providers[0], apiKey: string, baseUrl?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (provider.type === "ollama") {
+        const isAvailable = await checkOllamaHealth();
+        if (!isAvailable) {
+          return { success: false, error: "Ollama is not running. Start it with 'ollama serve'" };
+        }
+        const models = await getOllamaModels();
+        if (models.length === 0) {
+          return { success: false, error: "No models found. Pull a model with 'ollama pull llama3.2'" };
+        }
+        return { success: true };
+      }
+
+      if (provider.type === "openai") {
+        const response = await fetch("https://api.openai.com/v1/models", {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          return { success: false, error: data.error?.message || "Invalid API key" };
+        }
+        return { success: true };
+      }
+
+      if (provider.type === "anthropic") {
+        return { success: true };
+      }
+
+      if (provider.type === "groq") {
+        const response = await fetch("https://api.groq.com/openai/v1/models", {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        if (!response.ok) {
+          return { success: false, error: "Invalid Groq API key" };
+        }
+        return { success: true };
+      }
+
+      return { success: !!apiKey };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : "Connection test failed" 
+      };
     }
   };
 
   const saveConfig = async () => {
     if (!selectedConfigProvider) return;
 
-    setIsTestingConnection(true);
-    
-    // Simulate connection test
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const provider = providers.find(p => p.id === selectedConfigProvider);
+    if (!provider) return;
 
-    updateProvider(selectedConfigProvider, {
-      apiKey: apiKeyInput,
-      baseUrl: baseUrlInput,
-      isConnected: !!apiKeyInput,
-    });
+    setIsTestingConnection(true);
+    setConnectionError(null);
+
+    const result = await testConnection(provider, apiKeyInput, baseUrlInput);
+
+    if (result.success) {
+      const updates: Record<string, unknown> = {
+        apiKey: apiKeyInput,
+        isConnected: true,
+      };
+      
+      if (baseUrlInput) {
+        updates.baseUrl = baseUrlInput;
+      }
+
+      if (provider.type === "ollama") {
+        const models = await getOllamaModels();
+        updates.models = models.map(m => ({ id: m, name: m }));
+      }
+
+      updateProvider(selectedConfigProvider, updates);
+      setConfigDialogOpen(false);
+    } else {
+      setConnectionError(result.error || "Connection failed");
+    }
 
     setIsTestingConnection(false);
-    setConfigDialogOpen(false);
+  };
+
+  const getProviderBadge = (provider: typeof providers[0]) => {
+    if (provider.type === "ollama") {
+      if (ollamaStatus === "available") {
+        return (
+          <Badge variant="default" className="text-xs gap-1 bg-green-600">
+            <Cpu className="w-3 h-3" />
+            Local & Free
+          </Badge>
+        );
+      }
+      return (
+        <Badge variant="secondary" className="text-xs">
+          Local
+        </Badge>
+      );
+    }
+    
+    if (provider.isConnected) {
+      return (
+        <Badge variant="secondary" className="text-xs gap-1">
+          <Check className="w-3 h-3" />
+          Connected
+        </Badge>
+      );
+    }
+    
+    return null;
   };
 
   if (compact) {
@@ -103,6 +223,9 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
               <SelectItem key={provider.id} value={provider.id}>
                 <div className="flex items-center gap-2">
                   {provider.isConnected && <Check className="w-3 h-3 text-green-500" />}
+                  {provider.type === "ollama" && ollamaStatus === "available" && (
+                    <Cpu className="w-3 h-3 text-green-500" />
+                  )}
                   {provider.name}
                 </div>
               </SelectItem>
@@ -143,7 +266,10 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
           baseUrlInput={baseUrlInput}
           setBaseUrlInput={setBaseUrlInput}
           isTestingConnection={isTestingConnection}
+          connectionError={connectionError}
+          ollamaStatus={ollamaStatus}
           onSave={saveConfig}
+          onRefreshOllama={checkOllamaStatus}
         />
       </div>
     );
@@ -171,14 +297,9 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
             data-testid={`card-provider-${provider.id}`}
           >
             <CardContent className="p-4">
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start justify-between mb-2 gap-1">
                 <div className="font-medium text-sm">{provider.name}</div>
-                {provider.isConnected ? (
-                  <Badge variant="secondary" className="text-xs">
-                    <Check className="w-3 h-3 mr-1" />
-                    Connected
-                  </Badge>
-                ) : (
+                {getProviderBadge(provider) || (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -251,7 +372,10 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
         baseUrlInput={baseUrlInput}
         setBaseUrlInput={setBaseUrlInput}
         isTestingConnection={isTestingConnection}
+        connectionError={connectionError}
+        ollamaStatus={ollamaStatus}
         onSave={saveConfig}
+        onRefreshOllama={checkOllamaStatus}
       />
     </div>
   );
@@ -266,7 +390,10 @@ interface ConfigDialogProps {
   baseUrlInput: string;
   setBaseUrlInput: (value: string) => void;
   isTestingConnection: boolean;
+  connectionError: string | null;
+  ollamaStatus: "checking" | "available" | "unavailable";
   onSave: () => void;
+  onRefreshOllama: () => void;
 }
 
 function ConfigDialog({
@@ -278,7 +405,10 @@ function ConfigDialog({
   baseUrlInput,
   setBaseUrlInput,
   isTestingConnection,
+  connectionError,
+  ollamaStatus,
   onSave,
+  onRefreshOllama,
 }: ConfigDialogProps) {
   if (!provider) return null;
 
@@ -291,51 +421,111 @@ function ConfigDialog({
           <DialogTitle>Configure {provider.name}</DialogTitle>
           <DialogDescription>
             {isOllama
-              ? "Connect to your local Ollama instance"
+              ? "Connect to your local Ollama instance for free, private AI"
               : "Enter your API key to connect this provider"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {!isOllama && (
-            <div className="space-y-2">
-              <Label htmlFor="api-key">API Key</Label>
-              <Input
-                id="api-key"
-                type="password"
-                placeholder="sk-..."
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                data-testid="input-api-key"
-              />
-              <p className="text-xs text-muted-foreground">
-                Your API key is stored locally and never sent to our servers.
-              </p>
+          {isOllama ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${
+                    ollamaStatus === "available" ? "bg-green-500" : 
+                    ollamaStatus === "unavailable" ? "bg-red-500" : 
+                    "bg-yellow-500 animate-pulse"
+                  }`} />
+                  <div>
+                    <p className="font-medium text-sm">Ollama Status</p>
+                    <p className="text-xs text-muted-foreground">
+                      {ollamaStatus === "available" ? "Running on localhost:11434" :
+                       ollamaStatus === "unavailable" ? "Not detected" :
+                       "Checking..."}
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={onRefreshOllama}
+                  disabled={ollamaStatus === "checking"}
+                >
+                  Refresh
+                </Button>
+              </div>
+
+              {ollamaStatus === "unavailable" && (
+                <div className="space-y-3 p-4 border rounded-lg">
+                  <h4 className="font-medium text-sm">Quick Setup</h4>
+                  <ol className="text-sm text-muted-foreground space-y-2">
+                    <li className="flex gap-2">
+                      <span className="font-medium">1.</span>
+                      <span>Install Ollama from <a href="https://ollama.ai" target="_blank" rel="noopener" className="text-primary underline">ollama.ai</a></span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-medium">2.</span>
+                      <span>Run <code className="bg-muted px-1 rounded">ollama pull llama3.2</code></span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-medium">3.</span>
+                      <span>Click Refresh above</span>
+                    </li>
+                  </ol>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="base-url">Base URL (optional)</Label>
+                <Input
+                  id="base-url"
+                  placeholder="http://localhost:11434"
+                  value={baseUrlInput}
+                  onChange={(e) => setBaseUrlInput(e.target.value)}
+                  data-testid="input-base-url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Change only if Ollama is running on a different host/port
+                </p>
+              </div>
             </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="api-key">API Key</Label>
+                <Input
+                  id="api-key"
+                  type="password"
+                  placeholder={provider.type === "openai" ? "sk-..." : "Enter your API key"}
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  data-testid="input-api-key"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your API key is stored locally in your browser and never sent to our servers.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="base-url">Base URL (optional)</Label>
+                <Input
+                  id="base-url"
+                  placeholder={provider.baseUrl || "Use default endpoint"}
+                  value={baseUrlInput}
+                  onChange={(e) => setBaseUrlInput(e.target.value)}
+                  data-testid="input-base-url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  For custom endpoints or proxies. Leave empty for default.
+                </p>
+              </div>
+            </>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="base-url">
-              Base URL {!isOllama && "(optional)"}
-            </Label>
-            <Input
-              id="base-url"
-              placeholder={provider.baseUrl || "https://api.example.com/v1"}
-              value={baseUrlInput}
-              onChange={(e) => setBaseUrlInput(e.target.value)}
-              data-testid="input-base-url"
-            />
-          </div>
-
-          {isOllama && (
-            <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg text-sm">
-              <AlertCircle className="w-4 h-4 mt-0.5 text-muted-foreground" />
-              <div className="text-muted-foreground">
-                Make sure Ollama is running on your machine. Default URL is{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                  http://localhost:11434
-                </code>
-              </div>
+          {connectionError && (
+            <div className="flex items-start gap-2 p-3 bg-destructive/10 rounded-lg text-sm">
+              <AlertCircle className="w-4 h-4 mt-0.5 text-destructive" />
+              <span className="text-destructive">{connectionError}</span>
             </div>
           )}
         </div>
@@ -344,7 +534,11 @@ function ConfigDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={onSave} disabled={isTestingConnection} data-testid="button-save-config">
+          <Button 
+            onClick={onSave} 
+            disabled={isTestingConnection || (isOllama && ollamaStatus !== "available")} 
+            data-testid="button-save-config"
+          >
             {isTestingConnection ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

@@ -5,7 +5,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAgentStore } from "@/lib/agent-store";
-import { Send, Bot, User, Loader2, AlertCircle, Zap } from "lucide-react";
+import { runInference, buildSystemPrompt, convertChatHistory } from "@/lib/inference";
+import type { ChatMessage } from "@shared/schema";
+import { Send, Bot, User, Loader2, AlertCircle, Zap, Wifi, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface TestMessage {
@@ -16,15 +18,17 @@ interface TestMessage {
 }
 
 export function AgentTestPane() {
-  const { builderState, providers, selectedProviderId } = useAgentStore();
+  const { builderState, providers, selectedProviderId, selectedModelId } = useAgentStore();
   const [messages, setMessages] = useState<TestMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const currentAgent = builderState.currentAgent;
 
-  const hasConnectedProvider = providers.some((p) => p.isConnected);
   const selectedProvider = providers.find((p) => p.id === selectedProviderId);
+  const hasConnectedProvider = selectedProvider?.isConnected || selectedProvider?.type === "ollama";
+  const isUsingRealInference = hasConnectedProvider && selectedModelId;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -49,6 +53,44 @@ export function AgentTestPane() {
     return responses[Math.floor(Math.random() * responses.length)];
   };
 
+  const callRealInference = async (userMessage: string): Promise<string> => {
+    if (!selectedProvider || !selectedModelId || !currentAgent) {
+      throw new Error("Provider or model not configured");
+    }
+
+    const systemPrompt = buildSystemPrompt(currentAgent);
+    
+    const chatHistory: ChatMessage[] = messages.map(m => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp,
+    }));
+    
+    chatHistory.push({
+      id: crypto.randomUUID(),
+      role: "user",
+      content: userMessage,
+      timestamp: new Date().toISOString(),
+    });
+
+    const inferenceMessages = convertChatHistory(chatHistory, systemPrompt);
+
+    const result = await runInference({
+      provider: selectedProvider,
+      model: selectedModelId,
+      messages: inferenceMessages,
+      temperature: currentAgent.temperature || 0.7,
+      maxTokens: currentAgent.maxTokens || 4096,
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || "Inference failed");
+    }
+
+    return result.content;
+  };
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -62,10 +104,17 @@ export function AgentTestPane() {
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
+    setLastError(null);
 
     try {
-      const response = await simulateAgentResponse(userMessage.content);
+      let response: string;
       
+      if (isUsingRealInference) {
+        response = await callRealInference(userMessage.content);
+      } else {
+        response = await simulateAgentResponse(userMessage.content);
+      }
+
       const assistantMessage: TestMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -75,10 +124,13 @@ export function AgentTestPane() {
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error occurred";
+      setLastError(errorMsg);
+      
       const errorMessage: TestMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "Sorry, I encountered an error. Please try again.",
+        content: `Sorry, I encountered an error: ${errorMsg}. Please check your API configuration and try again.`,
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -92,6 +144,11 @@ export function AgentTestPane() {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const clearChat = () => {
+    setMessages([]);
+    setLastError(null);
   };
 
   if (!currentAgent || builderState.step !== "complete") {
@@ -117,25 +174,53 @@ export function AgentTestPane() {
           </div>
           <div>
             <h3 className="font-medium text-sm">{currentAgent.name}</h3>
-            <p className="text-xs text-muted-foreground">Test Mode</p>
+            <p className="text-xs text-muted-foreground">
+              {isUsingRealInference ? "Live Mode" : "Demo Mode"}
+            </p>
           </div>
         </div>
-        <Badge variant="secondary" className="text-xs">
-          {currentAgent.modelId || "gpt-4o"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {isUsingRealInference ? (
+            <Badge variant="default" className="text-xs gap-1">
+              <Wifi className="w-3 h-3" />
+              {selectedProvider?.name}
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="text-xs gap-1">
+              <WifiOff className="w-3 h-3" />
+              Demo
+            </Badge>
+          )}
+          {messages.length > 0 && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={clearChat}
+              data-testid="button-clear-chat"
+            >
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
 
-      {!hasConnectedProvider && (
+      {!isUsingRealInference && (
         <div className="px-4 py-3 bg-amber-500/10 border-b border-amber-500/20">
           <div className="flex items-start gap-2 text-sm">
             <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-amber-700 dark:text-amber-300 font-medium">Demo Mode</p>
               <p className="text-amber-600/80 dark:text-amber-400/80 text-xs">
-                Connect a model provider to use real AI responses.
+                Connect a model provider for real AI responses. Responses are simulated.
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {lastError && (
+        <div className="px-4 py-2 bg-destructive/10 border-b border-destructive/20">
+          <p className="text-xs text-destructive">{lastError}</p>
         </div>
       )}
 
@@ -237,7 +322,7 @@ export function AgentTestPane() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Test your agent..."
+            placeholder={isUsingRealInference ? "Send a message..." : "Test your agent (demo mode)..."}
             className="min-h-[48px] max-h-[100px] resize-none"
             data-testid="textarea-test-input"
           />
