@@ -96,21 +96,57 @@ export function ChatInterface({ onAgentUpdate }: ChatInterfaceProps) {
         // Use real AI for refinement conversations after agent is complete
         if (canUseRealAI && selectedProvider) {
           const agent = builderState.currentAgent || {};
-          const systemPrompt = `You are a helpful AI assistant that helps users refine and improve their AI agent configuration. The user has created an agent with the following settings:
+          
+          // Check if user wants to build/apply the suggested config
+          const lowerMessage = userMessage.toLowerCase();
+          const wantsToBuild = lowerMessage.includes("build") || 
+                              lowerMessage.includes("yes") || 
+                              lowerMessage.includes("do it") ||
+                              lowerMessage.includes("apply") ||
+                              lowerMessage.includes("create it") ||
+                              lowerMessage.includes("make it") ||
+                              lowerMessage.includes("go ahead");
+          
+          if (wantsToBuild) {
+            // Parse the last AI response to extract the suggested config
+            const lastAiMessage = builderState.messages.filter(m => m.role === "assistant").pop();
+            if (lastAiMessage) {
+              const extractedConfig = parseAgentConfigFromMessage(lastAiMessage.content);
+              if (extractedConfig.name || extractedConfig.goal) {
+                // Apply the extracted config
+                updateBuilderAgent(extractedConfig);
+                onAgentUpdate?.({ ...extractedConfig, updated: true });
+                return `I've updated your agent configuration!\n\n**${extractedConfig.name || agent.name}** is now configured with:\n- **Goal:** ${extractedConfig.goal || agent.goal}\n- **Personality:** ${extractedConfig.personality || agent.personality}\n- **Tools:** ${extractedConfig.tools?.join(", ") || agent.tools?.join(", ") || "None"}\n\nYou can see the updated config in the Code Preview panel. Would you like to test it in the Test tab, or make any more adjustments?`;
+              }
+            }
+            return "I've noted your request. Could you describe what you'd like your agent to do, and I'll create a configuration for you?";
+          }
+          
+          const systemPrompt = `You are a helpful AI assistant that helps users design and build AI agents. The user is working on creating/refining an agent.
 
+Current agent settings:
 Name: ${agent.name || "AI Assistant"}
 Goal: ${agent.goal || "General assistance"}
 Personality: ${agent.personality || "Helpful and professional"}
 Tools: ${agent.tools?.join(", ") || "None"}
 Model: ${selectedModelId}
 
-Help the user make adjustments, answer questions about their agent, or suggest improvements. Be concise and helpful.`;
+IMPORTANT INSTRUCTIONS:
+1. When the user describes what they want their agent to do, suggest a complete agent configuration with:
+   - **Name:** (a descriptive name)
+   - **Goal:** (what the agent will accomplish)
+   - **Personality:** (communication style)
+   - **Tools:** (capabilities needed, choose from: web_scraper, html_generator, css_generator, code_interpreter, file_reader, api_caller, data_analyzer, image_analysis, web_search, calculator)
+
+2. After suggesting a configuration, ALWAYS end with:
+   "Would you like me to build this agent for you, or is there anything else you'd like to adjust?"
+
+3. Keep responses concise but complete. Focus on understanding their needs and creating the right agent config.`;
 
           const messages = convertChatHistory(
-            builderState.messages.slice(-10), // Last 10 messages for context
+            builderState.messages.slice(-10),
             systemPrompt
           );
-          // Add the current user message
           messages.push({ role: "user", content: userMessage });
 
           const result = await runInference({
@@ -118,17 +154,15 @@ Help the user make adjustments, answer questions about their agent, or suggest i
             model: selectedModelId || "",
             messages,
             temperature: 0.7,
-            maxTokens: 1024,
+            maxTokens: 1500,
           });
 
           if (result.success && result.content) {
             return result.content;
           }
-          // Fallback if inference fails
-          return `I understand you want to refine your agent. ${result.error ? `(Note: ${result.error})` : ""}\n\nWhat specific aspect would you like to adjust?\n- Name or description\n- Goal or capabilities\n- Personality/communication style\n- Tools and integrations`;
+          return `I understand you want to refine your agent. ${result.error ? `(Note: ${result.error})` : ""}\n\nWhat specific aspect would you like to adjust?`;
         }
-        // No connected provider fallback
-        return "Your agent is complete! To have a live conversation and refine it further, please connect a model provider (like xAI, OpenAI, or Anthropic) in the model selector above.";
+        return "Your agent is complete! To have a live conversation and refine it further, please connect a model provider in the model selector above.";
 
       default:
         return "I'm here to help! Let me know what you'd like to adjust or if you're ready to proceed.";
@@ -191,6 +225,79 @@ Help the user make adjustments, answer questions about their agent, or suggest i
       return "ollama-local";
     }
     return "gpt-4o";
+  };
+
+  const parseAgentConfigFromMessage = (message: string): Partial<{
+    name: string;
+    goal: string;
+    personality: string;
+    tools: string[];
+  }> => {
+    const config: Partial<{ name: string; goal: string; personality: string; tools: string[] }> = {};
+    
+    // Extract name - look for **Name:** pattern
+    const nameMatch = message.match(/\*\*Name:\*\*\s*([^\n*]+)/i) || 
+                      message.match(/Name:\s*([^\n]+)/i);
+    if (nameMatch) {
+      config.name = nameMatch[1].trim();
+    }
+    
+    // Extract goal
+    const goalMatch = message.match(/\*\*Goal:\*\*\s*([^\n*]+)/i) ||
+                      message.match(/Goal:\s*([^\n]+)/i);
+    if (goalMatch) {
+      config.goal = goalMatch[1].trim();
+    }
+    
+    // Extract personality
+    const personalityMatch = message.match(/\*\*Personality:\*\*\s*([^\n*]+)/i) ||
+                             message.match(/Personality:\s*([^\n]+)/i);
+    if (personalityMatch) {
+      config.personality = personalityMatch[1].trim();
+    }
+    
+    // Extract tools - look for tool mentions
+    const toolsMatch = message.match(/\*\*Tools:\*\*\s*([\s\S]*?)(?=\n\n|\n\*\*|Would you|$)/i) ||
+                       message.match(/Tools:\s*([\s\S]*?)(?=\n\n|\n\*\*|Would you|$)/i);
+    if (toolsMatch) {
+      const toolText = toolsMatch[1].toLowerCase();
+      const toolMapping: Record<string, string> = {
+        "web_scraper": "web_search",
+        "scraper": "web_search",
+        "scraping": "web_search",
+        "web_search": "web_search",
+        "search": "web_search",
+        "html_generator": "html_generator",
+        "html": "html_generator",
+        "css_generator": "html_generator",
+        "css": "html_generator",
+        "code_interpreter": "code_interpreter",
+        "code": "code_interpreter",
+        "python": "code_interpreter",
+        "file_reader": "file_reader",
+        "file": "file_reader",
+        "api_caller": "api_caller",
+        "api": "api_caller",
+        "data_analyzer": "code_interpreter",
+        "data": "code_interpreter",
+        "image_analysis": "image_analysis",
+        "image": "image_analysis",
+        "calculator": "calculator",
+        "math": "calculator",
+      };
+      
+      const tools: string[] = [];
+      for (const [keyword, tool] of Object.entries(toolMapping)) {
+        if (toolText.includes(keyword) && !tools.includes(tool)) {
+          tools.push(tool);
+        }
+      }
+      if (tools.length > 0) {
+        config.tools = tools;
+      }
+    }
+    
+    return config;
   };
 
   const handleSend = async () => {
