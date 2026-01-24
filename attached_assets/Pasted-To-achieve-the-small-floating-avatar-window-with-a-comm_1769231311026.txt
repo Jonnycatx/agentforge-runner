@@ -1,0 +1,113 @@
+To achieve the small, floating avatar window with a communication field (chat input + message history) that users can talk to — like a cute desktop companion that pops up, stays visible/on-top, and feels like a real AI buddy — the best path is to build it as part of the AgentForge Runner desktop app using Tauri (which you're already planning for cross-platform local execution).
+This keeps everything secure (100% local, no data leaks), lightweight (~10-20 MB binary), and dummy-proof: user double-clicks their saved .agentforge file → avatar appears → they just type/talk in the small window.
+Core Concept & User Experience
+
+Avatar appearance: A small, semi-transparent or rounded window (e.g., 300×400 px) showing:
+Top: Cute animated avatar image (static PNG/SVG or simple Lottie/CSS animation for idle/thinking/happy states).
+Middle: Scrollable chat history (like a mini messaging app).
+Bottom: Text input field + send button (optionally mic icon for voice-to-text).
+
+Behaviors:
+Draggable anywhere on screen.
+Always-on-top (optional toggle).
+Minimizes to system tray (icon shows notifications like "Agent is thinking…").
+Global hotkey (e.g., Ctrl+Shift+A) summons/hides the chat window.
+Multiple agents = multiple avatars or tabbed/switchable in one window.
+
+Interaction: Every message sent → routes to the user's chosen model (Ollama/local or API key) → streams response back with typing animation on avatar.
+
+How to Accomplish This Technically (Tauri-Focused)
+Tauri is ideal here (better than Electron for size/security). Recent versions (v1.5+ and especially v2) support exactly the features needed.
+
+Window Setup in Tauri (tauri.conf.json + Rust code)
+Define a custom "companion" window in src-tauri/tauri.conf.json:JSON{
+  "productName": "AgentForge Runner",
+  "windows": [
+    {
+      "label": "main",
+      "title": "AgentForge",
+      "width": 800,
+      "height": 600,
+      "visible": false  // hidden at start
+    },
+    {
+      "label": "avatar-chat",
+      "title": "",
+      "decorations": false,          // no titlebar
+      "transparent": true,           // background see-through
+      "alwaysOnTop": true,           // stays above other windows
+      "skipTaskbar": true,           // doesn't show in taskbar
+      "resizable": false,
+      "width": 320,
+      "height": 420,
+      "center": false,               // position manually
+      "x": 100, "y": 100             // initial position
+    }
+  ]
+}
+In Rust backend (src-tauri/src/main.rs), create/manage windows dynamically:Rustuse tauri::{Manager, WindowBuilder};
+
+fn create_avatar_window(app: &tauri::AppHandle, agent_config: AgentConfig) {
+    let window = WindowBuilder::new(app, "avatar-chat", tauri::WindowUrl::App("avatar.html".into()))
+        .title("")
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .resizable(false)
+        .inner_size(320.0, 420.0)
+        .build()
+        .unwrap();
+
+    // Position near cursor or saved location
+    window.set_position(tauri::PhysicalPosition::new(200.0, 200.0)).unwrap();
+
+    // Inject agent config via invoke or localStorage
+}
+
+Frontend for the Avatar Window (HTML/JS/TS + React/Vue/Svelte)
+Create a dedicated page (e.g., avatar.html or React component routed to /avatar).
+Use CSS for rounded, bubble-like design:CSSbody { background: transparent; overflow: hidden; }
+.avatar-container {
+  border-radius: 24px;
+  background: rgba(30, 30, 40, 0.85);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  overflow: hidden;
+  height: 100%;
+}
+.avatar-img { width: 80px; height: 80px; border-radius: 50%; animation: bob 3s infinite; }
+.chat-history { flex: 1; padding: 16px; overflow-y: auto; }
+.input-area { padding: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
+Chat logic: Reuse your existing chat-interface component (messages array, input field).
+Avatar animation: Simple CSS keyframes for floating/bobbing, or integrate Lottie for more personality.
+
+System Tray Integration
+Add tray icon (cute default avatar) via Tauri's system-tray plugin.
+Tray menu: "Open Chat", "Switch Agent", "Quit", "Toggle Always-on-Top".
+On tray click → show/hide avatar window.
+
+Inference & Security
+Chat messages → client-side fetch to user's model endpoint (Ollama localhost or API).
+Store agent config + keys encrypted (Tauri has secure storage APIs via plugins like tauri-plugin-store or OS keychain).
+File open: Associate .agentforge extension → app opens, loads config, spawns avatar window.
+
+Bonus Polish for "Fun & Amazing"
+Voice: Use Web Speech API (browser APIs work in Tauri webview) for input/output.
+Animations: Avatar "thinks" (dots/eyes moving), "speaks" (mouth sync if advanced).
+Draggable: Use Tauri's window.startDragging() on avatar header.
+Multi-agent: Tray menu lists agents; clicking switches config and reloads window content.
+
+
+Recommended Path Forward
+
+Start small: Prototype just the avatar-chat window in Tauri (ignore main app at first).
+Use examples from:
+CrabNebula's "Desktop Pet with Tauri" tutorial (very close — animated pet on desktop).
+Tauri docs: Window Customization + System Tray sections.
+GitHub discussions (#4452 on floating windows).
+
+
+If Tauri feels heavy: Fallback to web PWA (installable to desktop with windowed mode), but it won't be as seamless/native as Tauri for tray/always-on-top/click-through.
+Timeline: 2–4 weeks for basic avatar + chat if your team knows Rust/JS.
+
+This turns AgentForge from "build and export code" into "build once, have a living desktop friend forever". Users will love the simplicity: no terminals, no Python installs — just download, double-click, chat.

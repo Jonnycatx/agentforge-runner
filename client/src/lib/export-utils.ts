@@ -1088,3 +1088,281 @@ ${(agent.tools || []).map(t => `- **${t.replace(/_/g, " ")}**`).join("\n")}
 Built with AgentForge - Zero platform fees, powered by your models.
 `;
 }
+
+// Generate Windows .hta app (HTML Application - runs natively on Windows)
+export async function generateWindowsApp(agent: PWAAgentConfig): Promise<void> {
+  const agentName = agent.name?.replace(/\s+/g, "_").toLowerCase() || "my_agent";
+  const avatarSvgPath = getAvatarSvgPath(agent.avatar || "bot");
+  
+  const htaContent = `<!DOCTYPE html>
+<html>
+<head>
+<title>${agent.name || "AI Agent"}</title>
+<HTA:APPLICATION 
+  ID="AgentForge"
+  APPLICATIONNAME="${agent.name || "AI Agent"}"
+  BORDER="thin"
+  BORDERSTYLE="normal"
+  CAPTION="yes"
+  SHOWINTASKBAR="yes"
+  SINGLEINSTANCE="yes"
+  WINDOWSTATE="normal"
+/>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+body { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); min-height: 100vh; color: white; }
+.container { max-width: 600px; margin: 0 auto; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; }
+.header { text-align: center; padding: 30px 0; }
+.avatar { width: 80px; height: 80px; background: #2563eb; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; }
+.avatar svg { width: 48px; height: 48px; fill: white; }
+h1 { font-size: 24px; margin-bottom: 8px; }
+.setup-card { background: rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+.setup-card select, .setup-card input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; margin-bottom: 16px; }
+.chat-container { flex: 1; display: flex; flex-direction: column; background: rgba(255,255,255,0.05); border-radius: 16px; overflow: hidden; }
+.messages { flex: 1; padding: 20px; overflow-y: auto; }
+.message { margin-bottom: 16px; padding: 12px 16px; border-radius: 12px; max-width: 85%; }
+.message.user { background: #2563eb; margin-left: auto; }
+.message.assistant { background: rgba(255,255,255,0.1); }
+.input-area { padding: 16px; background: rgba(0,0,0,0.2); display: flex; gap: 12px; }
+.input-area input { flex: 1; padding: 14px; border-radius: 24px; border: none; background: rgba(255,255,255,0.1); color: white; }
+.input-area button { padding: 14px 24px; border-radius: 24px; border: none; background: #2563eb; color: white; cursor: pointer; }
+.hidden { display: none; }
+.btn-start { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #2563eb; color: white; font-size: 16px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="avatar"><svg viewBox="0 0 24 24"><path d="${avatarSvgPath}"/></svg></div>
+    <h1>${agent.name || "AI Agent"}</h1>
+  </div>
+  <div id="setup" class="setup-card">
+    <h2>Get Started</h2>
+    <label>Provider</label>
+    <select id="provider"><option value="ollama">Ollama (Free)</option><option value="openai">OpenAI</option><option value="groq">Groq</option></select>
+    <div id="apiKeySection" style="display:none;"><label>API Key</label><input type="password" id="apiKey"></div>
+    <button class="btn-start" onclick="startChat()">Start</button>
+  </div>
+  <div id="chatArea" class="chat-container hidden">
+    <div id="messages" class="messages"></div>
+    <div class="input-area">
+      <input type="text" id="userInput" onkeypress="if(event.key==='Enter')sendMessage()">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+</div>
+<script>
+var config = {provider:'ollama',apiKey:'',model:'llama3.1'};
+var chatHistory = [];
+var systemPrompt = ` + "`" + `${agent.personality || "You are a helpful AI assistant."}` + "`" + `;
+document.getElementById('provider').onchange = function() {
+  config.provider = this.value;
+  document.getElementById('apiKeySection').style.display = this.value === 'ollama' ? 'none' : 'block';
+};
+function startChat() {
+  config.apiKey = document.getElementById('apiKey').value;
+  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('chatArea').classList.remove('hidden');
+  addMessage("Hello! How can I help?", 'assistant');
+}
+function addMessage(text, role) {
+  var div = document.createElement('div');
+  div.className = 'message ' + role;
+  div.textContent = text;
+  document.getElementById('messages').appendChild(div);
+}
+function sendMessage() {
+  var input = document.getElementById('userInput');
+  var msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  addMessage(msg, 'user');
+  chatHistory.push({role:'user',content:msg});
+  addMessage('Thinking...', 'assistant');
+  var xhr = new ActiveXObject('MSXML2.XMLHTTP');
+  var url = config.provider === 'ollama' ? 'http://localhost:11434/api/chat' : 
+            config.provider === 'openai' ? 'https://api.openai.com/v1/chat/completions' :
+            'https://api.groq.com/openai/v1/chat/completions';
+  xhr.open('POST', url, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  if (config.provider !== 'ollama') xhr.setRequestHeader('Authorization', 'Bearer ' + config.apiKey);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      var msgs = document.getElementById('messages');
+      msgs.removeChild(msgs.lastChild);
+      if (xhr.status === 200) {
+        var data = JSON.parse(xhr.responseText);
+        var reply = config.provider === 'ollama' ? data.message.content : data.choices[0].message.content;
+        addMessage(reply, 'assistant');
+      } else { addMessage('Error: ' + xhr.status, 'assistant'); }
+    }
+  };
+  var body = config.provider === 'ollama' ? 
+    JSON.stringify({model:'llama3.1',messages:[{role:'system',content:systemPrompt}].concat(chatHistory),stream:false}) :
+    JSON.stringify({model:config.provider==='openai'?'gpt-4o-mini':'llama-3.1-70b-versatile',messages:[{role:'system',content:systemPrompt}].concat(chatHistory)});
+  xhr.send(body);
+}
+</script>
+</body>
+</html>`;
+
+  const blob = new Blob([htaContent], { type: "application/hta" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = agentName + ".hta";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Generate Mac/Linux HTML file
+export async function generateMacApp(agent: PWAAgentConfig): Promise<void> {
+  const agentName = agent.name?.replace(/\s+/g, "_").toLowerCase() || "my_agent";
+  const avatarSvgPath = getAvatarSvgPath(agent.avatar || "bot");
+  
+  const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${agent.name || "AI Agent"}</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+body { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); min-height: 100vh; color: white; }
+.container { max-width: 600px; margin: 0 auto; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; }
+.header { text-align: center; padding: 30px 0; }
+.avatar { width: 80px; height: 80px; background: #2563eb; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(37, 99, 235, 0.5); }
+.avatar svg { width: 48px; height: 48px; fill: white; }
+h1 { font-size: 24px; margin-bottom: 8px; }
+.setup-card { background: rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; margin-bottom: 20px; backdrop-filter: blur(10px); }
+.setup-card select, .setup-card input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; margin-bottom: 16px; }
+.chat-container { flex: 1; display: flex; flex-direction: column; background: rgba(255,255,255,0.05); border-radius: 16px; overflow: hidden; min-height: 400px; }
+.messages { flex: 1; padding: 20px; overflow-y: auto; }
+.message { margin-bottom: 16px; padding: 12px 16px; border-radius: 12px; max-width: 85%; word-wrap: break-word; }
+.message.user { background: #2563eb; margin-left: auto; }
+.message.assistant { background: rgba(255,255,255,0.1); }
+.input-area { padding: 16px; background: rgba(0,0,0,0.2); display: flex; gap: 12px; }
+.input-area input { flex: 1; padding: 14px 18px; border-radius: 24px; border: none; background: rgba(255,255,255,0.1); color: white; font-size: 15px; outline: none; }
+.input-area button { padding: 14px 24px; border-radius: 24px; border: none; background: #2563eb; color: white; cursor: pointer; font-weight: 600; }
+.hidden { display: none !important; }
+.btn-start { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #2563eb; color: white; font-size: 16px; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="avatar"><svg viewBox="0 0 24 24"><path d="${avatarSvgPath}"/></svg></div>
+    <h1>${agent.name || "AI Agent"}</h1>
+    <p style="opacity:0.7">${agent.goal || "Your AI assistant"}</p>
+  </div>
+  <div id="setup" class="setup-card">
+    <h2 style="margin-bottom:16px">Get Started</h2>
+    <label style="display:block;margin-bottom:8px">Provider</label>
+    <select id="provider" onchange="updateProvider()">
+      <option value="ollama">Ollama (Free - Local)</option>
+      <option value="openai">OpenAI</option>
+      <option value="anthropic">Anthropic</option>
+      <option value="groq">Groq</option>
+    </select>
+    <div id="apiKeySection" style="display:none;">
+      <label style="display:block;margin-bottom:8px">API Key</label>
+      <input type="password" id="apiKey" placeholder="Enter your API key">
+    </div>
+    <button class="btn-start" onclick="startChat()">Start Chatting</button>
+  </div>
+  <div id="chatArea" class="chat-container hidden">
+    <div id="messages" class="messages"></div>
+    <div class="input-area">
+      <input type="text" id="userInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+</div>
+<script>
+const config = { provider: 'ollama', apiKey: '', model: 'llama3.1' };
+const chatHistory = [];
+const systemPrompt = ` + "`" + `${agent.personality || "You are a helpful AI assistant."}` + "`" + `;
+const models = { ollama: 'llama3.1', openai: 'gpt-4o-mini', anthropic: 'claude-3-5-sonnet-20241022', groq: 'llama-3.1-70b-versatile' };
+
+function updateProvider() {
+  config.provider = document.getElementById('provider').value;
+  config.model = models[config.provider];
+  document.getElementById('apiKeySection').style.display = config.provider === 'ollama' ? 'none' : 'block';
+}
+
+function startChat() {
+  config.apiKey = document.getElementById('apiKey').value;
+  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('chatArea').classList.remove('hidden');
+  addMessage("Hello! How can I help you today?", 'assistant');
+}
+
+function addMessage(text, role) {
+  const div = document.createElement('div');
+  div.className = 'message ' + role;
+  div.textContent = text;
+  document.getElementById('messages').appendChild(div);
+  document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  addMessage(msg, 'user');
+  chatHistory.push({role: 'user', content: msg});
+  
+  const typing = document.createElement('div');
+  typing.className = 'message assistant';
+  typing.id = 'typing';
+  typing.textContent = 'Thinking...';
+  typing.style.opacity = '0.7';
+  document.getElementById('messages').appendChild(typing);
+  
+  try {
+    let url, headers = {'Content-Type': 'application/json'}, body;
+    
+    if (config.provider === 'ollama') {
+      url = 'http://localhost:11434/api/chat';
+      body = {model: config.model, messages: [{role:'system',content:systemPrompt},...chatHistory], stream: false};
+    } else if (config.provider === 'anthropic') {
+      url = 'https://api.anthropic.com/v1/messages';
+      headers['x-api-key'] = config.apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+      headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      body = {model: config.model, max_tokens: 4096, system: systemPrompt, messages: chatHistory};
+    } else {
+      url = config.provider === 'openai' ? 'https://api.openai.com/v1/chat/completions' : 'https://api.groq.com/openai/v1/chat/completions';
+      headers['Authorization'] = 'Bearer ' + config.apiKey;
+      body = {model: config.model, messages: [{role:'system',content:systemPrompt},...chatHistory]};
+    }
+    
+    const response = await fetch(url, {method: 'POST', headers, body: JSON.stringify(body)});
+    const data = await response.json();
+    document.getElementById('typing')?.remove();
+    
+    let reply;
+    if (config.provider === 'ollama') reply = data.message?.content;
+    else if (config.provider === 'anthropic') reply = data.content?.[0]?.text;
+    else reply = data.choices?.[0]?.message?.content;
+    
+    addMessage(reply || 'Error: No response', 'assistant');
+    chatHistory.push({role: 'assistant', content: reply});
+  } catch (err) {
+    document.getElementById('typing')?.remove();
+    addMessage('Error: ' + err.message, 'assistant');
+  }
+}
+</script>
+</body>
+</html>`;
+
+  const blob = new Blob([htmlContent], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = agentName + ".html";
+  a.click();
+  URL.revokeObjectURL(url);
+}

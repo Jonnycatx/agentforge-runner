@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAgentStore } from "@/lib/agent-store";
-import { generateExportPackage, generatePWAPackage, type PWAAgentConfig } from "@/lib/export-utils";
+import { generateExportPackage, generatePWAPackage, generateWindowsApp, generateMacApp, type PWAAgentConfig } from "@/lib/export-utils";
 import { useToast } from "@/hooks/use-toast";
 import {
   Download,
@@ -40,6 +40,8 @@ import {
   Rabbit,
   Fish,
   Squirrel,
+  Apple,
+  MonitorSmartphone,
 } from "lucide-react";
 
 interface DeploymentModalProps {
@@ -66,6 +68,8 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
   const [pwaComplete, setPwaComplete] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState("bot");
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [selectedOS, setSelectedOS] = useState<"windows" | "mac" | null>(null);
+  const [isOSDownloading, setIsOSDownloading] = useState(false);
   const currentAgent = builderState.currentAgent;
 
   const handleDownload = async () => {
@@ -118,6 +122,40 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
 
   const handleAvatarSelect = (avatarId: string) => {
     setSelectedAvatar(avatarId);
+  };
+
+  const handleOSDownload = async (os: "windows" | "mac") => {
+    if (!currentAgent) return;
+    
+    setSelectedOS(os);
+    setIsOSDownloading(true);
+    try {
+      const config: PWAAgentConfig = {
+        ...currentAgent,
+        avatar: selectedAvatar,
+        voiceEnabled,
+      };
+      
+      if (os === "windows") {
+        await generateWindowsApp(config);
+      } else {
+        await generateMacApp(config);
+      }
+      
+      toast({
+        title: `${os === "windows" ? "Windows" : "Mac"} app downloaded!`,
+        description: "Double-click the file to open your AI agent",
+      });
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: "There was an error creating the app",
+        variant: "destructive",
+      });
+    } finally {
+      setIsOSDownloading(false);
+      setSelectedOS(null);
+    }
   };
 
   const handleCopyShareLink = () => {
@@ -256,39 +294,52 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                     </div>
                   </div>
 
-                  <Button 
-                    className="w-full mt-4" 
-                    onClick={handlePWADownload}
-                    disabled={isPWADownloading || pwaComplete}
-                    data-testid="button-download-pwa"
-                  >
-                    {isPWADownloading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating Web App...
-                      </>
-                    ) : pwaComplete ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                        Downloaded!
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-2" />
-                        Download Web App
-                      </>
-                    )}
-                  </Button>
+                  {/* OS Selection */}
+                  <div className="mt-6 pt-4 border-t">
+                    <Label className="text-sm font-medium mb-3 block">Choose Your System</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        variant="outline"
+                        className="h-auto py-4 flex flex-col items-center gap-2"
+                        onClick={() => handleOSDownload("windows")}
+                        disabled={isOSDownloading}
+                        data-testid="button-download-windows"
+                      >
+                        {isOSDownloading && selectedOS === "windows" ? (
+                          <Loader2 className="w-8 h-8 animate-spin" />
+                        ) : (
+                          <Monitor className="w-8 h-8" />
+                        )}
+                        <span className="font-medium">Windows</span>
+                        <span className="text-xs text-muted-foreground">Double-click to run</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-auto py-4 flex flex-col items-center gap-2"
+                        onClick={() => handleOSDownload("mac")}
+                        disabled={isOSDownloading}
+                        data-testid="button-download-mac"
+                      >
+                        {isOSDownloading && selectedOS === "mac" ? (
+                          <Loader2 className="w-8 h-8 animate-spin" />
+                        ) : (
+                          <Apple className="w-8 h-8" />
+                        )}
+                        <span className="font-medium">Mac</span>
+                        <span className="text-xs text-muted-foreground">Double-click to run</span>
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-primary/20 bg-primary/5">
+              <Card className="border-green-500/20 bg-green-500/5">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-sm">
-                    <Zap className="w-4 h-4 text-primary" />
-                    <span className="font-medium">How it works:</span>
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span className="font-medium">That's it!</span>
                     <span className="text-muted-foreground">
-                      Unzip → Open index.html → Click "Install" in browser
+                      Download, double-click, start chatting with your AI
                     </span>
                   </div>
                 </CardContent>
