@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1D4ED8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="102" fill="url(#bg)"/>
+  <g fill="white">
+    <!-- Robot head -->
+    <rect x="156" y="140" width="200" height="160" rx="30"/>
+    <!-- Eyes -->
+    <circle cx="216" cy="220" r="24" fill="#3B82F6"/>
+    <circle cx="296" cy="220" r="24" fill="#3B82F6"/>
+    <!-- Mouth -->
+    <rect x="196" y="260" width="120" height="20" rx="10" fill="#3B82F6"/>
+    <!-- Antenna -->
+    <rect x="246" y="100" width="20" height="50" rx="10"/>
+    <circle cx="256" cy="90" r="20"/>
+    <!-- Body -->
+    <rect x="176" y="310" width="160" height="100" rx="20"/>
+    <!-- Arms -->
+    <rect x="116" y="320" width="50" height="20" rx="10"/>
+    <rect x="346" y="320" width="50" height="20" rx="10"/>
+  </g>
+</svg>
