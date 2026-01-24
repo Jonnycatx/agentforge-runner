@@ -355,22 +355,22 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                       <Monitor className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold mb-1">One-Click Desktop Runner</h3>
+                      <h3 className="font-semibold mb-1">Native Desktop App</h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Full Python/LangChain agent with advanced tools and capabilities.
+                        Download → Double-click → Chat. No install, no Terminal needed.
                       </p>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Advanced tool support
+                          Opens instantly
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          LangChain powered
+                          Native look & feel
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Customizable code
+                          Your avatar included
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -382,39 +382,42 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                   
                   {/* OS Selection for Desktop */}
                   <div className="mt-4 pt-4 border-t">
-                    <Label className="text-sm font-medium mb-3 block">Choose Your System</Label>
+                    <Label className="text-sm font-medium mb-3 block">Download Native App</Label>
                     <div className="grid grid-cols-2 gap-3">
                       <Button
                         variant="outline"
                         className="h-auto py-4 flex flex-col items-center gap-2"
-                        onClick={handleDownload}
-                        disabled={isDownloading}
+                        onClick={() => handleOSDownload("windows")}
+                        disabled={isOSDownloading}
                         data-testid="button-download-desktop-windows"
                       >
-                        {isDownloading ? (
+                        {isOSDownloading && selectedOS === "windows" ? (
                           <Loader2 className="w-8 h-8 animate-spin" />
                         ) : (
                           <Monitor className="w-8 h-8" />
                         )}
                         <span className="font-medium">Windows</span>
-                        <span className="text-xs text-muted-foreground">run.bat included</span>
+                        <span className="text-xs text-muted-foreground">Native .exe app</span>
                       </Button>
                       <Button
                         variant="outline"
                         className="h-auto py-4 flex flex-col items-center gap-2"
-                        onClick={handleDownload}
-                        disabled={isDownloading}
+                        onClick={() => handleOSDownload("mac")}
+                        disabled={isOSDownloading}
                         data-testid="button-download-desktop-mac"
                       >
-                        {isDownloading ? (
+                        {isOSDownloading && selectedOS === "mac" ? (
                           <Loader2 className="w-8 h-8 animate-spin" />
                         ) : (
                           <Apple className="w-8 h-8" />
                         )}
-                        <span className="font-medium">Mac / Linux</span>
-                        <span className="text-xs text-muted-foreground">run.sh included</span>
+                        <span className="font-medium">Mac</span>
+                        <span className="text-xs text-muted-foreground">Native .app bundle</span>
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground text-center mt-3">
+                      Double-click to open - no install needed
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -453,8 +456,8 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
               <Card>
                 <CardContent className="p-4">
                   <h4 className="font-medium mb-3 flex items-center gap-2">
-                    <Terminal className="w-4 h-4" />
-                    Quick Start Guide
+                    <Sparkles className="w-4 h-4" />
+                    How It Works
                   </h4>
                   <div className="space-y-3 text-sm">
                     <div className="flex gap-3">
@@ -462,8 +465,8 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                         1
                       </Badge>
                       <div>
-                        <p className="font-medium">Unzip the download</p>
-                        <p className="text-muted-foreground">Extract to any folder</p>
+                        <p className="font-medium">Download the app</p>
+                        <p className="text-muted-foreground">Click Windows or Mac above</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
@@ -471,8 +474,8 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                         2
                       </Badge>
                       <div>
-                        <p className="font-medium">Double-click the run script</p>
-                        <p className="text-muted-foreground">run.bat (Windows) or run.sh (Mac/Linux)</p>
+                        <p className="font-medium">Double-click to open</p>
+                        <p className="text-muted-foreground">Opens like any normal app</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
@@ -480,8 +483,8 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                         3
                       </Badge>
                       <div>
-                        <p className="font-medium">Chat in your browser</p>
-                        <p className="text-muted-foreground">Opens automatically at localhost</p>
+                        <p className="font-medium">Start chatting!</p>
+                        <p className="text-muted-foreground">Pick a provider and you're ready</p>
                       </div>
                     </div>
                   </div>

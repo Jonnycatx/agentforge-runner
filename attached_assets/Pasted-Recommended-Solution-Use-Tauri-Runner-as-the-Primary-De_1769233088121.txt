@@ -1,0 +1,67 @@
+Recommended Solution: Use Tauri Runner as the Primary Desktop Experience (No Python for Users)
+Tauri (Rust + web frontend) is perfect for this — it creates a tiny (~10-20 MB), native-feeling Mac .app bundle that:
+
+Opens instantly with a small, customizable chat window (avatar + prompt field).
+Looks like a real Mac app (rounded corners, system titlebar or frameless, menu bar integration).
+Runs everything locally via user's Ollama/API keys (no central server).
+Handles Python-free: The app itself is Rust/WebView — no Python install needed for 95% of agents.
+
+How It Looks & Works
+
+User downloads a single AgentForgeRunner-macOS.app.zip (or .dmg for nicer install).
+Unzips → double-clicks the .app icon → it opens a small floating/centered window:
+Top: Cute avatar (from builder choice, animated bob/think).
+Middle: Scrollable chat history (bubbles, typing indicator).
+Bottom: Text input field + send button (mic icon for voice-to-text).
+Optional: Always-on-top toggle, minimize to dock/tray.
+
+If model not connected: Gentle modal "Connect your AI brain" → Ollama auto-detect or API key entry.
+Agent runs via browser-like fetch to local Ollama or cloud API — no Terminal, no pip, no chmod.
+
+If Python Is Somehow Required (rare, only for advanced tools):
+
+Tauri can detect via shell command (python3 --version).
+If missing → show native Mac alert/dialog:
+"This agent needs Python for extra powers!"
+Button: "Download Python" → opens https://www.python.org/downloads/macos/ in Safari.
+Secondary: "Skip for now" → fallback to basic mode or warn.
+
+
+This is far simpler than ZIP scripts — no folder navigation, no Terminal, feels like downloading any Mac app (e.g., Slack or Notion).
+Alternative: Bundle Python Script as Native .app (If Sticking to Python)
+If you want to keep exporting Python agents without forcing Tauri yet, use py2app or Briefcase (BeeWare) to bundle into a .app:
+
+py2app (simplest for Mac-only):
+On your build machine (Mac): Install py2app (pip install py2app).
+Create setup.py: Points to agent.py + includes deps from requirements.txt.
+Run python setup.py py2app → outputs dist/AgentName.app (standalone bundle with embedded Python interpreter).
+Result: User downloads .app.zip → double-clicks → opens GUI window (use Tkinter, PyQt, or even webview for chat UI).
+Size: 50-200 MB (embeds Python + deps), but no user install needed.
+
+Briefcase (BeeWare): Better for cross-platform later, bundles Python + GUI toolkit (Toga for native Mac look).
+
+Missing Python Handling:
+
+If Python missing inside bundle → impossible (it's embedded), but if deps fail → show Tkinter/PyQt dialog: "Something went wrong — install Python from https://www.python.org/downloads/" + button to open link.
+
+Downsides vs Tauri:
+
+Larger file.
+Harder to update (full re-bundle per agent).
+GUI libs add complexity (Tkinter looks dated; PyQt needs license care).
+
+What to Do Next (Directive for Devs)
+Tell your team:
+"Switch desktop downloads to Tauri Runner-first for Mac (and Windows/Linux later):
+
+Build AgentForgeRunner-macOS.app (Tauri v2) with:
+Frameless/rounded chat window (avatar header, input field, message bubbles).
+File association: .agentforge → opens app + loads config.
+Native Mac alerts for model connection or rare Python needs.
+Download as .app.zip or .dmg (use create-dmg tool for polish).
+
+Fallback export: Keep ZIP for advanced users, but add big warning in web modal: 'For easiest experience, install Runner app first — no Terminal needed!'
+Remove Terminal instructions — replace with: 'Double-click the .app icon to chat with your agent instantly.'
+Test on clean Mac: No Python → ensure graceful (no crash, show link if relevant).
+
+This makes it dummy-proof: Download → double-click → chat window opens like any Mac app. No folders, no scripts, no complexity."
