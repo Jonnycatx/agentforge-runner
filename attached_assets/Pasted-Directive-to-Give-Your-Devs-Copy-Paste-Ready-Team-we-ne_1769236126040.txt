@@ -1,0 +1,113 @@
+Directive to Give Your Devs (Copy-Paste Ready)
+"Team – we need to shift to a true all-in-one package for desktop agents so users have the simplest possible experience:
+Goal:
+
+One-time download/install of AgentForge Runner (single .app or .dmg for Mac).
+After install, double-click any .agentforge file → Runner opens → shows native chat window with avatar + prompt field.
+No Terminal, no Python, no 'no application can open it' errors, no manual right-click/Open With.
+Runner reads the .agentforge JSON config, connects to user's model (Ollama/API), and runs the agent.
+
+Core Tech: Use Tauri v2 (Rust + web frontend) — it's lightweight (~10-20 MB), secure, and supports perfect file associations + native windows.
+Key Steps to Implement:
+
+Set Up File Associations in Tauri (critical for auto-open):
+In src-tauri/tauri.conf.json (or tauri.conf.json in v2), add:JSON{
+  "bundle": {
+    "macOS": {
+      "entitlements": "Entitlements.plist",  // if needed for associations
+      "exceptionDomain": "",  // optional
+      "frameworks": [],
+      "providerName": "YourCompany"
+    }
+  },
+  "plugins": {
+    "shell": {}  // if needed for any shell checks
+  },
+  "productName": "AgentForge Runner",
+  "identifier": "com.agentforge.runner"
+}For file associations (v2 docs recommend Info.plist customization):
+Create or edit src-tauri/Info.plist (or use bundle config) to register .agentforge:XML<key>CFBundleDocumentTypes</key>
+<array>
+  <dict>
+    <key>CFBundleTypeExtensions</key>
+    <array>
+      <string>agentforge</string>
+    </array>
+    <key>CFBundleTypeRole</key>
+    <string>Editor</string>
+    <key>LSHandlerRank</key>
+    <string>Owner</string>
+    <key>LSItemContentTypes</key>
+    <array>
+      <string>public.json</string>  // fallback
+    </array>
+  </dict>
+</array>
+In Rust (src-tauri/src/main.rs), add an event handler for file open:Rustuse tauri::{Manager, WindowBuilder};
+
+fn main() {
+    tauri::Builder::default()
+        .setup(|app| {
+            // Listen for file open events (macOS sends args)
+            let args: Vec<String> = std::env::args().collect();
+            if args.len() > 1 {
+                let file_path = &args[1];
+                // Load .agentforge file, parse JSON, open chat window with config
+                open_agent_window(app, file_path);
+            }
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+fn open_agent_window(app: &tauri::AppHandle, file_path: &str) {
+    // Parse file, load config
+    let window = WindowBuilder::new(app, "agent-chat", tauri::WindowUrl::App("index.html".into()))
+        .title("AgentForge Agent")
+        .inner_size(400.0, 600.0)
+        .decorations(true)  // or false for frameless
+        .always_on_top(true)
+        .build()
+        .unwrap();
+
+    // Invoke JS with config via window.emit or invoke_handler
+}
+Test: After build, double-click .agentforge → app opens + loads config.
+
+Bundle as User-Friendly macOS Package:
+Run tauri build on a Mac → outputs .app bundle in src-tauri/target/release/bundle/macos.
+For nicer distribution: Use .dmg installer (Tauri supports via bundle_dmg or external tools like create-dmg).
+Command: tauri build --bundles dmg (v2) or custom script.
+.dmg shows a nice drag-to-Applications window with app icon + Applications shortcut.
+
+Code Signing (required for no warnings): Use free Apple Developer account (or self-sign for testing). Add to CI if using GitHub Actions.
+Icon & Branding: Set custom .icns icon in tauri.conf.json → bundle.macOS.icon.
+
+Runner Features Inside:
+Native window: Frameless or with traffic lights, rounded corners, avatar header.
+Tray/menu bar icon (optional) for always-available.
+On first launch: Welcome modal "Welcome! Drop or double-click .agentforge files to chat with your agents."
+Model connection: Same UI as web (dropdown, Ollama auto-detect, API key entry).
+Parse .agentforge JSON → populate chat with agent name, personality, tools (route inference client-side via fetch).
+
+Web App Integration:
+In builder (/builder completion): Big button "Download AgentForge Runner + This Agent".
+First click: Downloads .dmg/.app installer + .agentforge file.
+Show inline steps: "1. Double-click the .dmg/.app → drag to Applications. 2. Double-click your agent file to open it in Runner."
+
+After install: Future downloads → just .agentforge file (small JSON).
+
+Timeline & Testing:
+Week 1: Set up file association + basic open handler in Tauri.
+Week 2: Bundle .dmg, test on clean Mac (no prior install).
+Test flow: Download → install Runner → double-click .agentforge → chat window opens.
+Handle errors: If file invalid → show native alert.
+
+
+Resources:
+
+Tauri v2 Distribute: https://v2.tauri.app/distribute/macos-application-bundle
+DMG guide: https://v2.tauri.app/distribute/dmg
+File association discussion: Reddit thread on macOS associations (search "Tauri file associations macOS").
+Use GitHub Actions + tauri-action for cross-platform builds.
