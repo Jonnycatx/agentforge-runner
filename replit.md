@@ -93,10 +93,18 @@ The app runs on port 5000 with both frontend and backend served together.
 - **Live/Demo Mode**: Test pane shows "Live Mode" when provider connected, "Demo Mode" otherwise
 - **Connection Testing**: Validates API keys before marking providers as connected
 
-### Authentication & Persistence (Latest)
+### Authentication & Persistence
 - **Replit Auth**: Users can sign in with Google, GitHub, X, Apple, or email/password via Replit's OIDC provider
 - **PostgreSQL Database**: Agents are now stored in PostgreSQL with user ownership
 - **User Accounts**: Header shows login/logout button and user avatar when authenticated
 - **Agent Ownership**: Created agents are associated with the user's account
 - **Cross-Device Sync**: Agents are stored server-side, accessible from any device when logged in
 - **Authorization**: Only owners can update/delete their agents; public agents can be viewed by anyone
+
+### UI Enhancements (Latest)
+- **Progress Stepper**: Visual step indicator with icons (Goal, Personality, Tools, Model, Done) showing build progress
+- **Model Provider Icons**: Provider-specific icons (Server, Sparkles, Brain, etc.) with green status dots for connected providers
+- **Details Tab**: Preview pane shows personality, tools with icons, and model settings in card layout
+- **Theme Toggle Dropdown**: Light/Dark/System options with OS preference auto-detection
+- **Confetti Celebration**: Blue confetti animation plays when agent build is complete
+- **Typing Animation**: Chat interface shows bouncing dots animation while assistant is responding
