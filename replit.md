@@ -106,7 +106,6 @@ The app runs on port 5000 with both frontend and backend served together.
 - **Model Provider Icons**: Provider-specific icons (Server, Sparkles, Brain, etc.) with green status dots for connected providers
 - **Details Tab**: Preview pane shows personality, tools with icons, and model settings in card layout
 - **Theme Toggle Dropdown**: Light/Dark/System options with OS preference auto-detection
-- **Confetti Celebration**: Blue confetti animation plays when agent build is complete
 - **Typing Animation**: Chat interface shows bouncing dots animation while assistant is responding
 
 ### Run Agent Web Interface (`/run-agent/:agentId`)

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +43,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
-import confetti from "canvas-confetti";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 
 export default function Builder() {
@@ -78,49 +77,6 @@ export default function Builder() {
   useEffect(() => {
     if (builderState.step !== "greeting") {
       setShowTemplates(false);
-    }
-  }, [builderState.step]);
-
-  // Celebration confetti when agent build is complete
-  const hasPlayedConfetti = useRef(false);
-  useEffect(() => {
-    if (builderState.step === "complete" && !hasPlayedConfetti.current) {
-      hasPlayedConfetti.current = true;
-      
-      // Fire confetti celebration
-      const duration = 2000;
-      const animationEnd = Date.now() + duration;
-      const colors = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'];
-
-      const frame = () => {
-        confetti({
-          particleCount: 3,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0 },
-          colors: colors
-        });
-        confetti({
-          particleCount: 3,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1 },
-          colors: colors
-        });
-
-        if (Date.now() < animationEnd) {
-          requestAnimationFrame(frame);
-        }
-      };
-      
-      frame();
-    }
-  }, [builderState.step]);
-
-  // Reset confetti flag when builder is reset
-  useEffect(() => {
-    if (builderState.step === "greeting") {
-      hasPlayedConfetti.current = false;
     }
   }, [builderState.step]);
 
