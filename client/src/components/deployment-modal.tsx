@@ -8,80 +8,53 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { useAgentStore } from "@/lib/agent-store";
-import { generateExportPackage, generatePWAPackage, generateWindowsApp, generateMacApp, type PWAAgentConfig } from "@/lib/export-utils";
+import { generateExportPackage } from "@/lib/export-utils";
 import { useToast } from "@/hooks/use-toast";
 import {
   Download,
   Globe,
   Monitor,
-  Share2,
   CheckCircle2,
   Loader2,
   Terminal,
   Bot,
-  Zap,
   ExternalLink,
-  Copy,
   Sparkles,
-  Smartphone,
-  Users,
-  Mic,
-  Volume2,
-  Palette,
-  Cat,
-  Dog,
-  Bird,
-  Rabbit,
-  Fish,
-  Squirrel,
   Apple,
-  MonitorSmartphone,
+  HelpCircle,
+  Rocket,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface DeploymentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const AVATAR_OPTIONS = [
-  { id: "bot", name: "Classic Bot", icon: Bot, color: "bg-blue-500" },
-  { id: "cat", name: "Coding Cat", icon: Cat, color: "bg-orange-500" },
-  { id: "dog", name: "Design Dog", icon: Dog, color: "bg-amber-500" },
-  { id: "bird", name: "Research Bird", icon: Bird, color: "bg-cyan-500" },
-  { id: "rabbit", name: "Quick Rabbit", icon: Rabbit, color: "bg-pink-500" },
-  { id: "fish", name: "Data Fish", icon: Fish, color: "bg-purple-500" },
-  { id: "squirrel", name: "Helper Squirrel", icon: Squirrel, color: "bg-green-500" },
-];
-
 export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
   const { builderState } = useAgentStore();
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadComplete, setDownloadComplete] = useState(false);
-  const [isPWADownloading, setIsPWADownloading] = useState(false);
-  const [pwaComplete, setPwaComplete] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState("bot");
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [selectedOS, setSelectedOS] = useState<"windows" | "mac" | null>(null);
-  const [isOSDownloading, setIsOSDownloading] = useState(false);
+  const [isAgentFileDownloading, setIsAgentFileDownloading] = useState(false);
+  const [selectedOS, setSelectedOS] = useState<"windows" | "mac" | "linux" | null>(null);
   const currentAgent = builderState.currentAgent;
 
-  const handleDownload = async () => {
+  const handlePythonDownload = async () => {
     if (!currentAgent) return;
     
     setIsDownloading(true);
     try {
       await generateExportPackage(currentAgent);
-      setDownloadComplete(true);
       toast({
-        title: "Agent exported!",
-        description: "Your agent package has been downloaded",
+        title: "Python package downloaded!",
+        description: "Unzip and run with Python installed",
       });
     } catch (error) {
       toast({
@@ -94,594 +67,246 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
     }
   };
 
-  const handlePWADownload = async () => {
-    if (!currentAgent) return;
-    
-    setIsPWADownloading(true);
-    try {
-      await generatePWAPackage({
-        ...currentAgent,
-        avatar: selectedAvatar,
-        voiceEnabled,
-      });
-      setPwaComplete(true);
-      toast({
-        title: "PWA App exported!",
-        description: "Your installable web app has been downloaded",
-      });
-    } catch (error) {
-      toast({
-        title: "Export failed",
-        description: "There was an error creating the PWA",
-        variant: "destructive",
-      });
-    } finally {
-      setIsPWADownloading(false);
-    }
-  };
-
-  const handleAvatarSelect = (avatarId: string) => {
-    setSelectedAvatar(avatarId);
-  };
-
-  const handleOSDownload = async (os: "windows" | "mac") => {
+  const handleAgentFileDownload = async (os: "windows" | "mac" | "linux") => {
     if (!currentAgent) return;
     
     setSelectedOS(os);
-    setIsOSDownloading(true);
+    setIsAgentFileDownloading(true);
+    
     try {
-      const config: PWAAgentConfig = {
-        ...currentAgent,
-        avatar: selectedAvatar,
-        voiceEnabled,
+      const agentConfig = {
+        version: "1.0",
+        agent: {
+          id: currentAgent.id || crypto.randomUUID(),
+          name: currentAgent.name || "My Agent",
+          goal: currentAgent.goal || "",
+          personality: currentAgent.personality || "",
+          tools: currentAgent.tools || [],
+          systemPrompt: currentAgent.systemPrompt || "",
+        },
+        avatar: "bot",
+        createdAt: new Date().toISOString(),
       };
-      
-      if (os === "windows") {
-        await generateWindowsApp(config);
-      } else {
-        await generateMacApp(config);
-      }
-      
+
+      const blob = new Blob([JSON.stringify(agentConfig, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeName = (currentAgent.name || "MyAgent").replace(/[^a-zA-Z0-9]/g, "");
+      a.href = url;
+      a.download = `${safeName}.agentforge`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
       toast({
-        title: `${os === "windows" ? "Windows" : "Mac"} app downloaded!`,
-        description: "Double-click the file to open your AI agent",
+        title: "Agent file downloaded!",
+        description: "Double-click to open in AgentForge Runner",
       });
     } catch (error) {
       toast({
         title: "Download failed",
-        description: "There was an error creating the app",
+        description: "There was an error creating the agent file",
         variant: "destructive",
       });
     } finally {
-      setIsOSDownloading(false);
+      setIsAgentFileDownloading(false);
       setSelectedOS(null);
     }
   };
 
-  const handleCopyShareLink = () => {
-    const shareUrl = `${window.location.origin}/builder?agent=${encodeURIComponent(JSON.stringify(currentAgent))}`;
-    navigator.clipboard.writeText(shareUrl);
-    toast({
-      title: "Link copied!",
-      description: "Share this link to let others try your agent",
-    });
+  const handleRunInBrowser = () => {
+    const agentId = currentAgent?.id || "default";
+    window.open(`/run-agent/${agentId}`, "_blank");
+    onOpenChange(false);
   };
 
   if (!currentAgent) return null;
 
-  const SelectedAvatarIcon = AVATAR_OPTIONS.find(a => a.id === selectedAvatar)?.icon || Bot;
-  const selectedAvatarData = AVATAR_OPTIONS.find(a => a.id === selectedAvatar);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden" data-testid="modal-deployment">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" />
-            Deploy Your Agent
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden" data-testid="modal-deployment">
+        <DialogHeader className="text-center pb-2">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center mb-3 shadow-lg">
+            <Rocket className="w-8 h-8 text-white" />
+          </div>
+          <DialogTitle className="text-2xl">
+            Your Agent is Ready!
           </DialogTitle>
-          <DialogDescription>
-            Choose how you want to run {currentAgent.name}
+          <DialogDescription className="text-base">
+            {currentAgent.name} is built and ready to chat
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="pwa" className="mt-4">
-          <TabsList className="grid w-full grid-cols-4 gap-1">
-            <TabsTrigger value="pwa" data-testid="tab-deploy-pwa">
-              <Globe className="w-4 h-4 mr-2" />
-              Web App
-            </TabsTrigger>
-            <TabsTrigger value="local" data-testid="tab-deploy-local">
-              <Monitor className="w-4 h-4 mr-2" />
-              Desktop
-            </TabsTrigger>
-            <TabsTrigger value="mobile" data-testid="tab-deploy-mobile">
-              <Smartphone className="w-4 h-4 mr-2" />
-              Mobile
-            </TabsTrigger>
-            <TabsTrigger value="share" data-testid="tab-deploy-share">
-              <Share2 className="w-4 h-4 mr-2" />
-              Share
-            </TabsTrigger>
-          </TabsList>
-
-          <ScrollArea className="h-[450px] mt-4">
-            {/* PWA / Web App Tab */}
-            <TabsContent value="pwa" className="mt-0 space-y-4">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-16 h-16 rounded-2xl ${selectedAvatarData?.color || "bg-primary"} flex items-center justify-center flex-shrink-0 shadow-lg`}>
-                      <SelectedAvatarIcon className="w-8 h-8 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold mb-1">One-Click Web App</h3>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Download, unzip, double-click run.bat (Windows) or run.sh (Mac/Linux) - opens automatically!
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Just double-click to run
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Choose your avatar
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Works with any AI provider
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Install as desktop app
-                        </div>
-                      </div>
-                    </div>
+        <ScrollArea className="max-h-[60vh] pr-2">
+          <div className="space-y-4 py-2">
+            
+            {/* Primary CTA - Desktop Download */}
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Monitor className="w-5 h-5 text-primary" />
                   </div>
-
-                  {/* Avatar Customization */}
-                  <div className="mt-6 pt-4 border-t">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Palette className="w-4 h-4 text-primary" />
-                      <span className="font-medium text-sm">Choose Avatar</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">Download & Run on Desktop</h3>
+                      <Badge variant="secondary" className="text-xs">Easiest</Badge>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {AVATAR_OPTIONS.map((avatar) => (
-                        <button
-                          key={avatar.id}
-                          onClick={() => handleAvatarSelect(avatar.id)}
-                          className={`relative p-2 rounded-xl transition-all ${
-                            selectedAvatar === avatar.id 
-                              ? "ring-2 ring-primary ring-offset-2" 
-                              : "hover-elevate"
-                          }`}
-                          data-testid={`avatar-${avatar.id}`}
-                        >
-                          <div className={`w-10 h-10 rounded-lg ${avatar.color} flex items-center justify-center`}>
-                            <avatar.icon className="w-5 h-5 text-white" />
-                          </div>
-                          <span className="text-xs text-muted-foreground mt-1 block text-center">
-                            {avatar.name.split(" ")[0]}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Voice Toggle */}
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                          {voiceEnabled ? (
-                            <Volume2 className="w-4 h-4 text-violet-600" />
-                          ) : (
-                            <Mic className="w-4 h-4 text-violet-600" />
-                          )}
-                        </div>
-                        <div>
-                          <Label htmlFor="voice-toggle" className="font-medium">Voice Interaction</Label>
-                          <p className="text-xs text-muted-foreground">Talk to your avatar naturally</p>
-                        </div>
-                      </div>
-                      <Switch
-                        id="voice-toggle"
-                        checked={voiceEnabled}
-                        onCheckedChange={setVoiceEnabled}
-                        data-testid="switch-voice"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Run in Browser Now */}
-                  <div className="mt-6 pt-4 border-t">
-                    <Label className="text-sm font-medium mb-3 block">Try It Now</Label>
-                    <Button
-                      size="lg"
-                      className="w-full h-auto py-4"
-                      onClick={() => {
-                        const agentId = currentAgent?.id || "default";
-                        window.open(`/run-agent/${agentId}`, "_blank");
-                        onOpenChange(false);
-                      }}
-                      data-testid="button-run-in-browser"
-                    >
-                      <Globe className="w-5 h-5 mr-2" />
-                      Run in Browser Now
-                      <ExternalLink className="w-4 h-4 ml-2" />
-                    </Button>
-                    <p className="text-xs text-muted-foreground text-center mt-2">
-                      Opens in a new tab - no download required
+                    <p className="text-sm text-muted-foreground mt-1">
+                      One-time install of AgentForge Runner - no Terminal needed
                     </p>
                   </div>
+                </div>
 
-                  {/* OS Download */}
-                  <div className="mt-6 pt-4 border-t">
-                    <Label className="text-sm font-medium mb-3 block">Download for Offline Use</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button
-                        variant="outline"
-                        className="h-auto py-4 flex flex-col items-center gap-2"
-                        onClick={() => handleOSDownload("windows")}
-                        disabled={isOSDownloading}
-                        data-testid="button-download-windows"
-                      >
-                        {isOSDownloading && selectedOS === "windows" ? (
-                          <Loader2 className="w-8 h-8 animate-spin" />
-                        ) : (
-                          <Monitor className="w-8 h-8" />
-                        )}
-                        <span className="font-medium">Windows</span>
-                        <span className="text-xs text-muted-foreground">Double-click to run</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-auto py-4 flex flex-col items-center gap-2"
-                        onClick={() => handleOSDownload("mac")}
-                        disabled={isOSDownloading}
-                        data-testid="button-download-mac"
-                      >
-                        {isOSDownloading && selectedOS === "mac" ? (
-                          <Loader2 className="w-8 h-8 animate-spin" />
-                        ) : (
-                          <Apple className="w-8 h-8" />
-                        )}
-                        <span className="font-medium">Mac</span>
-                        <span className="text-xs text-muted-foreground">Double-click to run</span>
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-green-500/20 bg-green-500/5">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    <span className="font-medium">That's it!</span>
-                    <span className="text-muted-foreground">
-                      Download, double-click, start chatting with your AI
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Desktop / Local Tab */}
-            <TabsContent value="local" className="mt-0 space-y-4">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                      <Monitor className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold mb-1">Native Desktop App</h3>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Download → Double-click → Chat. No install, no Terminal needed.
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Opens instantly
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Native look & feel
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Your avatar included
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          100% private
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* OS Selection for Desktop */}
-                  <div className="mt-4 pt-4 border-t">
-                    <Label className="text-sm font-medium mb-3 block">Download Native App</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button
-                        variant="outline"
-                        className="h-auto py-4 flex flex-col items-center gap-2"
-                        onClick={() => handleOSDownload("windows")}
-                        disabled={isOSDownloading}
-                        data-testid="button-download-desktop-windows"
-                      >
-                        {isOSDownloading && selectedOS === "windows" ? (
-                          <Loader2 className="w-8 h-8 animate-spin" />
-                        ) : (
-                          <Monitor className="w-8 h-8" />
-                        )}
-                        <span className="font-medium">Windows</span>
-                        <span className="text-xs text-muted-foreground">Native chat app</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-auto py-4 flex flex-col items-center gap-2"
-                        onClick={() => handleOSDownload("mac")}
-                        disabled={isOSDownloading}
-                        data-testid="button-download-desktop-mac"
-                      >
-                        {isOSDownloading && selectedOS === "mac" ? (
-                          <Loader2 className="w-8 h-8 animate-spin" />
-                        ) : (
-                          <Apple className="w-8 h-8" />
-                        )}
-                        <span className="font-medium">Mac</span>
-                        <span className="text-xs text-muted-foreground">Native chat app</span>
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground text-center mt-3">
-                      Double-click to open - no install needed
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Multi-Agent Desktop */}
-              <Card className="border-violet-500/20 bg-violet-500/5">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center flex-shrink-0">
-                      <Users className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-sm mb-1">Multi-Agent Desktop</h4>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Run several agents at once with different avatars for different roles!
-                      </p>
-                      <div className="flex gap-1">
-                        <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
-                          <Cat className="w-3 h-3 text-white" />
-                        </div>
-                        <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center">
-                          <Dog className="w-3 h-3 text-white" />
-                        </div>
-                        <div className="w-6 h-6 rounded-full bg-cyan-500 flex items-center justify-center">
-                          <Bird className="w-3 h-3 text-white" />
-                        </div>
-                        <span className="text-xs text-muted-foreground ml-2 self-center">
-                          Coding Cat + Design Dog + Research Bird
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    How It Works
-                  </h4>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex gap-3">
-                      <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center flex-shrink-0">
-                        1
-                      </Badge>
-                      <div>
-                        <p className="font-medium">Download the app</p>
-                        <p className="text-muted-foreground">Click Windows or Mac above</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                      <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center flex-shrink-0">
-                        2
-                      </Badge>
-                      <div>
-                        <p className="font-medium">Double-click to open</p>
-                        <p className="text-muted-foreground">Opens like any normal app</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3">
-                      <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center flex-shrink-0">
-                        3
-                      </Badge>
-                      <div>
-                        <p className="font-medium">Start chatting!</p>
-                        <p className="text-muted-foreground">Pick a provider and you're ready</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-amber-500/20 bg-amber-500/5">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-                      <Zap className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-sm mb-1">Free local inference with Ollama</h4>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        No API costs - run AI on your own computer!
-                      </p>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href="https://ollama.ai" target="_blank" rel="noopener noreferrer">
-                          Get Ollama
-                          <ExternalLink className="w-3 h-3 ml-1" />
-                        </a>
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Mobile Tab */}
-            <TabsContent value="mobile" className="mt-0 space-y-4">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                      <Smartphone className="w-6 h-6 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold mb-1">Mobile Companion</h3>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Chat with your agents from your phone. Agents sync via your account.
-                      </p>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          iOS and Android via PWA
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Agents sync across devices
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Voice input on mobile
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Push notifications (coming soon)
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-primary/20">
-                <CardContent className="p-6">
-                  <h4 className="font-medium mb-4 text-center">Choose Your Device</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      variant="outline"
-                      className="h-auto py-4 flex flex-col items-center gap-2"
-                      onClick={() => handleOSDownload("mac")}
-                      disabled={isOSDownloading}
-                      data-testid="button-download-ios"
-                    >
-                      {isOSDownloading && selectedOS === "mac" ? (
-                        <Loader2 className="w-8 h-8 animate-spin" />
-                      ) : (
-                        <Apple className="w-8 h-8" />
-                      )}
-                      <span className="font-medium">iPhone / iPad</span>
-                      <span className="text-xs text-muted-foreground">Open in Safari</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-auto py-4 flex flex-col items-center gap-2"
-                      onClick={() => handleOSDownload("mac")}
-                      disabled={isOSDownloading}
-                      data-testid="button-download-android"
-                    >
-                      {isOSDownloading && selectedOS === "mac" ? (
-                        <Loader2 className="w-8 h-8 animate-spin" />
-                      ) : (
-                        <Smartphone className="w-8 h-8" />
-                      )}
-                      <span className="font-medium">Android</span>
-                      <span className="text-xs text-muted-foreground">Open in Chrome</span>
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground text-center mt-4">
-                    Transfer the file to your phone, open it, then tap "Add to Home Screen"
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/50">
-                <CardContent className="p-4">
-                  <h4 className="font-medium text-sm mb-2">How to Install on Mobile</h4>
-                  <div className="space-y-2 text-xs text-muted-foreground">
-                    <p><strong>iOS:</strong> Open in Safari → Tap Share → "Add to Home Screen"</p>
-                    <p><strong>Android:</strong> Open in Chrome → Tap Menu → "Install app"</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Share Tab */}
-            <TabsContent value="share" className="mt-0 space-y-4">
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                      <Share2 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold mb-1">Share Your Agent</h3>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Let others try or remix your creation.
-                      </p>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Anyone with the link can try it
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          They use their own API keys
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Great for showcasing your work
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <Button 
+                <div className="grid grid-cols-3 gap-2 mb-3" data-testid="desktop-download-buttons">
+                  <Button
                     variant="outline"
-                    className="w-full mt-4" 
-                    onClick={handleCopyShareLink}
-                    data-testid="button-copy-share"
+                    className="h-auto py-3 flex flex-col items-center gap-1.5"
+                    onClick={() => handleAgentFileDownload("windows")}
+                    disabled={isAgentFileDownloading}
+                    data-testid="button-download-windows"
                   >
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy Share Link
+                    {isAgentFileDownloading && selectedOS === "windows" ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <Monitor className="w-6 h-6" />
+                    )}
+                    <span className="text-sm font-medium">Windows</span>
                   </Button>
-                </CardContent>
-              </Card>
+                  <Button
+                    variant="outline"
+                    className="h-auto py-3 flex flex-col items-center gap-1.5"
+                    onClick={() => handleAgentFileDownload("mac")}
+                    disabled={isAgentFileDownloading}
+                    data-testid="button-download-mac"
+                  >
+                    {isAgentFileDownloading && selectedOS === "mac" ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <Apple className="w-6 h-6" />
+                    )}
+                    <span className="text-sm font-medium">Mac</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto py-3 flex flex-col items-center gap-1.5"
+                    onClick={() => handleAgentFileDownload("linux")}
+                    disabled={isAgentFileDownloading}
+                    data-testid="button-download-linux"
+                  >
+                    {isAgentFileDownloading && selectedOS === "linux" ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <Terminal className="w-6 h-6" />
+                    )}
+                    <span className="text-sm font-medium">Linux</span>
+                  </Button>
+                </div>
 
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
-                    <Bot className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                  <h4 className="font-medium mb-2">Save to Gallery</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Make your agent public so the community can discover and remix it.
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground" data-testid="text-desktop-help">
+                  <HelpCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <p>
+                    <strong>First time?</strong> Get <a href="https://github.com/agentforge/runner/releases" target="_blank" rel="noopener noreferrer" className="underline">AgentForge Runner</a> once. 
+                    Then double-click any .agentforge file to chat instantly!
                   </p>
-                  <Button variant="secondary" data-testid="button-save-gallery">
-                    Publish to Gallery
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Secondary Option - Run in Browser */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                    <Globe className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium">Run in Browser Now</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Quick test - no download required
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleRunInBrowser}
+                    data-testid="button-run-in-browser"
+                  >
+                    Open
+                    <ExternalLink className="w-4 h-4 ml-2" />
                   </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </ScrollArea>
-        </Tabs>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tertiary Option - Python Package */}
+            <Card className="border-muted">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+                    <Terminal className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium text-muted-foreground">Download Python Package</h3>
+                      <Tooltip>
+                        <TooltipTrigger data-testid="tooltip-python-advanced">
+                          <Badge variant="outline" className="text-xs">Advanced</Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Requires Python installed on your computer</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      For developers - includes source code
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={handlePythonDownload}
+                    disabled={isDownloading}
+                    data-testid="button-download-python"
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* How it works */}
+            <div className="pt-2" data-testid="section-how-it-works">
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                How Desktop Mode Works
+              </h4>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="space-y-2" data-testid="step-1">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                    <span className="text-sm font-bold text-primary">1</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Install Runner<br />(one time)</p>
+                </div>
+                <div className="space-y-2" data-testid="step-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                    <span className="text-sm font-bold text-primary">2</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Download<br />.agentforge file</p>
+                </div>
+                <div className="space-y-2" data-testid="step-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                    <span className="text-sm font-bold text-primary">3</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Double-click<br />& chat!</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
