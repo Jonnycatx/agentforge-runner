@@ -156,8 +156,8 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
     }
   };
 
-  // Update this to your GitHub repo once you push the code
-  const GITHUB_REPO = "YOUR_USERNAME/agentforge";
+  // Central Runner repo - all users download from here
+  const GITHUB_REPO = "Jonnycatx/agentforge-runner";
   
   const getRunnerDownloadUrl = () => {
     const baseUrl = `https://github.com/${GITHUB_REPO}/releases/latest/download`;
