@@ -167,7 +167,7 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold">Download & Run on Desktop</h3>
-                      <Badge variant="secondary" className="text-xs">Easiest</Badge>
+                      <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
                       One-time install of AgentForge Runner - no Terminal needed
@@ -220,27 +220,30 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                   </Button>
                 </div>
 
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground" data-testid="text-desktop-help">
-                  <HelpCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <p>
-                    <strong>First time?</strong> Get <a href="https://github.com/agentforge/runner/releases" target="_blank" rel="noopener noreferrer" className="underline">AgentForge Runner</a> once. 
-                    Then double-click any .agentforge file to chat instantly!
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs" data-testid="text-desktop-help">
+                  <Rocket className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                  <p className="text-amber-800 dark:text-amber-200">
+                    <strong>AgentForge Runner coming soon!</strong> Download your .agentforge file now - 
+                    you'll be able to double-click it once the Runner app is released.
                   </p>
                 </div>
               </CardContent>
             </Card>
 
             {/* Secondary Option - Run in Browser */}
-            <Card>
+            <Card className="border-green-500/30">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center flex-shrink-0">
                     <Globe className="w-5 h-5 text-green-600 dark:text-green-400" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-medium">Run in Browser Now</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium">Run in Browser Now</h3>
+                      <Badge className="text-xs bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">Works Now</Badge>
+                    </div>
                     <p className="text-sm text-muted-foreground">
-                      Quick test - no download required
+                      Chat instantly - no download required
                     </p>
                   </div>
                   <Button
