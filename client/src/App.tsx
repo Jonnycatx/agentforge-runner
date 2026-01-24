@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Landing from "@/pages/landing";
 import Builder from "@/pages/builder";
 import Gallery from "@/pages/gallery";
+import RunAgent from "@/pages/run-agent";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -15,6 +16,7 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/builder" component={Builder} />
       <Route path="/gallery" component={Gallery} />
+      <Route path="/run-agent/:agentId?" component={RunAgent} />
       <Route component={NotFound} />
     </Switch>
   );
