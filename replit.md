@@ -108,3 +108,15 @@ The app runs on port 5000 with both frontend and backend served together.
 - **Theme Toggle Dropdown**: Light/Dark/System options with OS preference auto-detection
 - **Confetti Celebration**: Blue confetti animation plays when agent build is complete
 - **Typing Animation**: Chat interface shows bouncing dots animation while assistant is responding
+
+### Run Agent Web Interface (`/run-agent/:agentId`)
+- **Standalone Chat Page**: Apple-inspired minimalist design for running agents in browser
+- **Animated Header**: Agent avatar with pulse animation, name badge, model status indicator
+- **Message Bubbles**: Clean user/assistant bubbles with Framer Motion transitions and copy button on hover
+- **Welcome State**: Greeting message with agent personality and quick suggestion chips
+- **Typing Indicator**: Animated bouncing dots when AI is responding
+- **localStorage Persistence**: Chat history persists per agent across page refreshes
+- **Settings Dropdown**: Theme toggle (Light/Dark/System) and model connection option
+- **Model Connection Modal**: Prompts users to connect a model provider before first message
+- **Voice Input Button**: Placeholder for speech-to-text functionality
+- **Deployment Integration**: "Run in Browser Now" button opens agent in new tab from deployment modal
