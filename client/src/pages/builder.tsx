@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,12 @@ import {
   Zap,
   LayoutTemplate,
   MessageSquare,
-  Rocket
+  Rocket,
+  Target,
+  Smile,
+  Wrench,
+  Cpu,
+  CheckCircle2
 } from "lucide-react";
 import {
   Sheet,
@@ -38,6 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
+import confetti from "canvas-confetti";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 
 export default function Builder() {
@@ -72,6 +78,49 @@ export default function Builder() {
   useEffect(() => {
     if (builderState.step !== "greeting") {
       setShowTemplates(false);
+    }
+  }, [builderState.step]);
+
+  // Celebration confetti when agent build is complete
+  const hasPlayedConfetti = useRef(false);
+  useEffect(() => {
+    if (builderState.step === "complete" && !hasPlayedConfetti.current) {
+      hasPlayedConfetti.current = true;
+      
+      // Fire confetti celebration
+      const duration = 2000;
+      const animationEnd = Date.now() + duration;
+      const colors = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'];
+
+      const frame = () => {
+        confetti({
+          particleCount: 3,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0 },
+          colors: colors
+        });
+        confetti({
+          particleCount: 3,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1 },
+          colors: colors
+        });
+
+        if (Date.now() < animationEnd) {
+          requestAnimationFrame(frame);
+        }
+      };
+      
+      frame();
+    }
+  }, [builderState.step]);
+
+  // Reset confetti flag when builder is reset
+  useEffect(() => {
+    if (builderState.step === "greeting") {
+      hasPlayedConfetti.current = false;
     }
   }, [builderState.step]);
 
@@ -184,7 +233,7 @@ export default function Builder() {
     }
   };
 
-  const stepProgress = {
+  const stepProgress: Record<string, number> = {
     greeting: 0,
     goal: 20,
     personality: 40,
@@ -192,6 +241,26 @@ export default function Builder() {
     model: 80,
     review: 90,
     complete: 100,
+  };
+
+  // Step definitions for the progress stepper
+  const BUILDER_STEPS = [
+    { id: "goal", label: "Goal", icon: Target },
+    { id: "personality", label: "Personality", icon: Smile },
+    { id: "tools", label: "Tools", icon: Wrench },
+    { id: "model", label: "Model", icon: Cpu },
+    { id: "complete", label: "Done", icon: CheckCircle2 },
+  ];
+
+  const getStepStatus = (stepId: string) => {
+    const stepOrder = ["greeting", "goal", "personality", "tools", "model", "review", "complete"];
+    const currentIndex = stepOrder.indexOf(builderState.step);
+    const stepIndex = stepOrder.indexOf(stepId);
+    
+    if (stepId === "complete" && builderState.step === "review") return "current";
+    if (stepIndex < currentIndex) return "complete";
+    if (stepIndex === currentIndex) return "current";
+    return "upcoming";
   };
 
   return (
@@ -218,18 +287,35 @@ export default function Builder() {
 
               <Separator orientation="vertical" className="h-8" />
 
-              <div className="hidden sm:flex items-center gap-2">
-                <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
-                  <motion.div 
-                    className="h-full bg-primary rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${stepProgress[builderState.step]}%` }}
-                    transition={{ duration: 0.3 }}
-                  />
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {stepProgress[builderState.step]}%
-                </span>
+              {/* Progress Stepper */}
+              <div className="hidden md:flex items-center gap-1">
+                {BUILDER_STEPS.map((step, index) => {
+                  const status = getStepStatus(step.id);
+                  const StepIcon = step.icon;
+                  return (
+                    <div key={step.id} className="flex items-center">
+                      <div 
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all ${
+                          status === "complete" 
+                            ? "bg-green-500/10 text-green-600 dark:text-green-400" 
+                            : status === "current"
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        <StepIcon className={`w-3 h-3 ${
+                          status === "complete" ? "text-green-500" : ""
+                        }`} />
+                        <span className="hidden lg:inline">{step.label}</span>
+                      </div>
+                      {index < BUILDER_STEPS.length - 1 && (
+                        <div className={`w-4 h-px mx-1 ${
+                          status === "complete" ? "bg-green-500" : "bg-border"
+                        }`} />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

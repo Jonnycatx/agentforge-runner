@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentStore } from "@/lib/agent-store";
 import { AgentTestPane } from "@/components/agent-test-pane";
-import { Copy, Download, Code2, FileJson, Sparkles, Play } from "lucide-react";
+import { Copy, Download, Code2, FileJson, Sparkles, Play, Wrench, Palette, Search, Image, Calculator, Globe, FileText, Mail, MessageSquare, Database, Lock, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function CodePreview() {
@@ -115,6 +115,21 @@ if __name__ == "__main__":
 `;
   }, [currentAgent]);
 
+  // Tool icons mapping
+  const getToolIcon = (tool: string) => {
+    const toolLower = tool.toLowerCase();
+    if (toolLower.includes("search") || toolLower.includes("web")) return Globe;
+    if (toolLower.includes("image") || toolLower.includes("vision")) return Image;
+    if (toolLower.includes("code") || toolLower.includes("python")) return Code2;
+    if (toolLower.includes("math") || toolLower.includes("calc")) return Calculator;
+    if (toolLower.includes("file") || toolLower.includes("document")) return FileText;
+    if (toolLower.includes("email") || toolLower.includes("mail")) return Mail;
+    if (toolLower.includes("chat") || toolLower.includes("message")) return MessageSquare;
+    if (toolLower.includes("database") || toolLower.includes("sql")) return Database;
+    if (toolLower.includes("api") || toolLower.includes("fetch")) return Zap;
+    return Wrench;
+  };
+
   const handleCopy = async (content: string, type: string) => {
     await navigator.clipboard.writeText(content);
     toast({
@@ -187,6 +202,10 @@ if __name__ == "__main__":
               <Play className="w-3 h-3 mr-1" />
               Test
             </TabsTrigger>
+            <TabsTrigger value="details" className="text-xs" data-testid="tab-details">
+              <Palette className="w-3 h-3 mr-1" />
+              Details
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -208,6 +227,85 @@ if __name__ == "__main__":
 
         <TabsContent value="test" className="flex-1 m-0 data-[state=inactive]:hidden overflow-hidden">
           <AgentTestPane />
+        </TabsContent>
+
+        <TabsContent value="details" className="flex-1 m-0 data-[state=inactive]:hidden overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="p-4 space-y-6">
+              {/* Personality Section */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-primary" />
+                  Personality
+                </h3>
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {currentAgent?.personality || "No personality defined yet. Chat with the builder to set one!"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Tools Section */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-primary" />
+                  Tools & Capabilities
+                </h3>
+                {currentAgent?.tools && currentAgent.tools.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {currentAgent.tools.map((tool) => {
+                      const ToolIcon = getToolIcon(tool);
+                      return (
+                        <Badge
+                          key={tool}
+                          variant="secondary"
+                          className="px-3 py-1.5 text-xs flex items-center gap-1.5"
+                        >
+                          <ToolIcon className="w-3.5 h-3.5" />
+                          {tool.replace(/_/g, " ")}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No tools added yet. Tools give your agent special abilities!
+                  </p>
+                )}
+              </div>
+
+              {/* Model Info */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-primary" />
+                  Model Settings
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-xs text-muted-foreground">Model</p>
+                    <p className="text-sm font-medium mt-1">{currentAgent?.modelId || "Not selected"}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-xs text-muted-foreground">Temperature</p>
+                    <p className="text-sm font-medium mt-1">{currentAgent?.temperature || 0.7}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Goal */}
+              {currentAgent?.goal && (
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    Goal
+                  </h3>
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                    <p className="text-sm">{currentAgent.goal}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
         </TabsContent>
       </Tabs>
     </div>

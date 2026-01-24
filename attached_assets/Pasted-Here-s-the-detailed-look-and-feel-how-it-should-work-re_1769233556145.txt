@@ -1,0 +1,109 @@
+Here's the detailed look-and-feel + how it should work, refined for 2025/2026 best practices (minimalism, intuitive flows, agentic reliability, and browser-native execution).
+Overall Design Philosophy
+
+Apple-inspired minimalism — heavy whitespace, system fonts (Inter or SF Pro fallback), subtle blue accents (#2563EB or softer gradients), rounded corners, no visual noise.
+Dark mode by default (auto-detect OS preference) with light toggle in header.
+PWA installable — users get a "Add to Dock/Home Screen" prompt after first use → feels like a native app without being one.
+Responsive: Full desktop split-views → mobile stacked chat + collapsible preview.
+Performance first — fast loads (Next.js static/edge), lazy-loaded components, subtle micro-animations (Framer Motion fade-ins, typing indicators).
+
+1. Builder Experience (The Main Web Portal – agentforge.com/builder)
+This is where users conversationally create agents — the core "web agent" for building.
+Layout & Visuals
+
+Full-screen split-view (resizable divider like Cursor Composer):
+Left side (45-50%): Conversational chat pane.
+Top: Compact model selector (dropdown with icons: Ollama green dot for local, Groq lightning for speed, etc.) + current step indicator (e.g., "Goal → Personality").
+Chat area: Clean bubbles (user right-aligned blue, builder left-aligned gray with cute bot avatar).
+Bottom: Wide input field + send button (mic icon for voice-to-text via Web Speech API).
+Subtle typing animation (three bouncing dots) when builder responds.
+
+Right side (50-55%): Live preview pane with tabs:
+"Config" tab: Readable JSON view (syntax-highlighted, copy button).
+"Test Agent" tab: Mini chat window to instantly talk to the in-progress agent (real inference if model connected; simulated otherwise with banner "Connect model for live responses").
+"Tools & Personality" tab: Visual chips/badges (e.g., 🔍 Web Search, 🖼️ Image Gen) that highlight as added.
+
+
+Top global bar: Logo left, progress stepper center (Greeting → Goal → Personality → Tools → Model → Review → Complete), right side: Save, Export button (opens modal), theme toggle.
+Empty state: Centered template gallery grid (12 cards with icons, descriptions, "Start with this" buttons) — prevents blank-page anxiety.
+
+How It Works (Flow)
+
+User lands → types natural prompt (e.g., "Build me a web design agent").
+Builder Agent (your hardcoded expert prompt) guides step-by-step, one question at a time.
+Real-time updates: As user replies, right pane auto-refreshes config/test chat.
+Dummy-proof: Tooltips on hover, "Help" bubble for examples, undo button for steps.
+Completion: Confetti animation + "Agent Ready!" banner → big "Run Now" / "Download" buttons.
+
+2. Running the Agent in Browser (The "Web Agent" Chat Window)
+This is the no-install runner — opens in a new tab or full-window mode when user chooses "Run in Browser" from export/deploy modal.
+Layout & Visuals
+
+Compact, focused window (or full-page takeover):
+Header: Agent's chosen avatar (cute rounded image, 64px), name (e.g., "Web Designer Pro"), model badge (e.g., "Running on Groq Llama 3.1").
+Main area: Scrollable chat history (bubbles same style as builder).
+Bottom: Input field + send (mic for voice, file upload icon for tools like document analysis).
+Optional floating controls: Minimize, always-on-top toggle, switch model.
+
+Avatar enhancements: Simple CSS animation (gentle bob/idle), "thinking" state (pulsing glow or dots above head).
+Tools integration: If agent has web search → shows inline "Searching..." spinner; results appear as cards in chat.
+Mobile: Full-screen chat, keyboard-friendly.
+
+How It Works
+
+On "Run in Browser": Generate a self-contained page (static HTML/JS bundle via your export utils):
+Uses LangChain.js (or simple custom chain) for agent logic.
+Loads agent config from JSON (prompt, tools, personality).
+Connects to user's model (API key from localStorage or prompt to enter).
+For local Ollama: Proxy via browser fetch to localhost:11434 (warn if CORS issue).
+First load: Small spinner "Loading agent..." (caches assets).
+
+Inference: Streams responses (typing effect in chat).
+Tools: Browser-native (fetch for search, File API for uploads, no native OS access).
+Save state: LocalStorage persistence → reopen tab = continue conversation.
+Exit: "Back to Builder" link or close tab.
+
+Quick Comparison: Builder vs Runner-in-Browser
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+AspectBuilder (Web Portal)Runner-in-Browser (Web Agent Chat)PurposeCreate & refine agentUse/chat with finished agentLayoutSplit-view (chat + preview)Focused single-pane chatModel ConnectionRequired for live testRequired (prompt if missing)Install NeededNone (web)None (PWA optional)AvatarSmall previewProminent header avatarPersistenceSupabase/localStorageLocalStorage (per agent)
+This setup makes the web agent super easy: arrive → build → test instantly in browser → optionally download Runner for desktop avatar magic. No Python, no heavy installs for basic use.
+If you want to prototype visuals, base it on Cursor's clean composer (split-view, minimal tabs) + Apple's product pages (big whitespace, focus on one CTA). I can suggest specific CSS tweaks or component names from shadcn/ui if needed.

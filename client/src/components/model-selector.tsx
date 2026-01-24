@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentStore } from "@/lib/agent-store";
 import { checkOllamaHealth, getOllamaModels } from "@/lib/inference";
-import { Check, ChevronDown, Key, Settings, Zap, AlertCircle, Loader2, Cpu, Globe, Plus } from "lucide-react";
+import { Check, ChevronDown, Key, Settings, Zap, AlertCircle, Loader2, Cpu, Globe, Plus, Bot, Sparkles, Cloud, Server, Brain, Rabbit } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ModelSelectorProps {
@@ -74,6 +74,19 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
 
   const selectedProvider = providers.find((p) => p.id === selectedProviderId);
   const selectedModelObj = selectedProvider?.models?.find((m) => m.id === selectedModelId);
+
+  // Provider icons and colors
+  const getProviderIcon = (type: string) => {
+    switch (type) {
+      case "ollama": return { icon: Server, color: "text-green-500", bgColor: "bg-green-500" };
+      case "openai": return { icon: Sparkles, color: "text-emerald-500", bgColor: "bg-emerald-500" };
+      case "anthropic": return { icon: Brain, color: "text-orange-500", bgColor: "bg-orange-500" };
+      case "groq": return { icon: Rabbit, color: "text-purple-500", bgColor: "bg-purple-500" };
+      case "google": return { icon: Cloud, color: "text-blue-500", bgColor: "bg-blue-500" };
+      case "xai": return { icon: Zap, color: "text-cyan-500", bgColor: "bg-cyan-500" };
+      default: return { icon: Bot, color: "text-primary", bgColor: "bg-primary" };
+    }
+  };
 
   const handleProviderSelect = (providerId: string) => {
     selectProvider(providerId);
@@ -261,24 +274,53 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
   };
 
   if (compact) {
+    const currentProviderStyle = selectedProvider ? getProviderIcon(selectedProvider.type) : null;
+    const CurrentIcon = currentProviderStyle?.icon || Bot;
+    
     return (
       <div className="flex items-center gap-2">
         <Select value={selectedProviderId || ""} onValueChange={handleProviderSelect}>
-          <SelectTrigger className="w-[140px]" data-testid="select-provider">
-            <SelectValue placeholder="Provider" />
+          <SelectTrigger className="w-[150px]" data-testid="select-provider">
+            <div className="flex items-center gap-2">
+              {selectedProvider && (
+                <>
+                  <div className="relative">
+                    <CurrentIcon className={`w-4 h-4 ${currentProviderStyle?.color}`} />
+                    {(selectedProvider.isConnected || (selectedProvider.type === "ollama" && ollamaStatus === "available")) && (
+                      <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-background" />
+                    )}
+                  </div>
+                  <span className="truncate">{selectedProvider.name}</span>
+                </>
+              )}
+              {!selectedProvider && <span>Provider</span>}
+            </div>
           </SelectTrigger>
           <SelectContent>
-            {providers.map((provider) => (
-              <SelectItem key={provider.id} value={provider.id}>
-                <div className="flex items-center gap-2">
-                  {provider.isConnected && <Check className="w-3 h-3 text-green-500" />}
-                  {provider.type === "ollama" && ollamaStatus === "available" && (
-                    <Cpu className="w-3 h-3 text-green-500" />
-                  )}
-                  {provider.name}
-                </div>
-              </SelectItem>
-            ))}
+            {providers.map((provider) => {
+              const providerStyle = getProviderIcon(provider.type);
+              const ProviderIcon = providerStyle.icon;
+              const isConnected = provider.isConnected || (provider.type === "ollama" && ollamaStatus === "available");
+              
+              return (
+                <SelectItem key={provider.id} value={provider.id}>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <ProviderIcon className={`w-4 h-4 ${providerStyle.color}`} />
+                      {isConnected && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full" />
+                      )}
+                    </div>
+                    <span>{provider.name}</span>
+                    {isConnected && (
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 ml-auto">
+                        Ready
+                      </Badge>
+                    )}
+                  </div>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
 
