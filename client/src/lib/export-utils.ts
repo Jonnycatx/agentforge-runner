@@ -1094,6 +1094,7 @@ export async function generateWindowsApp(agent: PWAAgentConfig): Promise<void> {
   const agentName = agent.name?.replace(/\s+/g, "_").toLowerCase() || "my_agent";
   const avatarSvgPath = getAvatarSvgPath(agent.avatar || "bot");
   
+  // Windows 11 native style HTA application
   const htaContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -1101,84 +1102,263 @@ export async function generateWindowsApp(agent: PWAAgentConfig): Promise<void> {
 <HTA:APPLICATION 
   ID="AgentForge"
   APPLICATIONNAME="${agent.name || "AI Agent"}"
-  BORDER="thin"
-  BORDERSTYLE="normal"
+  BORDER="thick"
+  BORDERSTYLE="raised"
   CAPTION="yes"
   SHOWINTASKBAR="yes"
   SINGLEINSTANCE="yes"
   WINDOWSTATE="normal"
+  SCROLL="no"
+  MAXIMIZEBUTTON="yes"
+  MINIMIZEBUTTON="yes"
+  SYSMENU="yes"
 />
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-body { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); min-height: 100vh; color: white; }
-.container { max-width: 600px; margin: 0 auto; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; }
-.header { text-align: center; padding: 30px 0; }
-.avatar { width: 80px; height: 80px; background: #2563eb; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; }
-.avatar svg { width: 48px; height: 48px; fill: white; }
-h1 { font-size: 24px; margin-bottom: 8px; }
-.setup-card { background: rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
-.setup-card select, .setup-card input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; margin-bottom: 16px; }
-.chat-container { flex: 1; display: flex; flex-direction: column; background: rgba(255,255,255,0.05); border-radius: 16px; overflow: hidden; }
-.messages { flex: 1; padding: 20px; overflow-y: auto; }
-.message { margin-bottom: 16px; padding: 12px 16px; border-radius: 12px; max-width: 85%; }
-.message.user { background: #2563eb; margin-left: auto; }
-.message.assistant { background: rgba(255,255,255,0.1); }
-.input-area { padding: 16px; background: rgba(0,0,0,0.2); display: flex; gap: 12px; }
-.input-area input { flex: 1; padding: 14px; border-radius: 24px; border: none; background: rgba(255,255,255,0.1); color: white; }
-.input-area button { padding: 14px 24px; border-radius: 24px; border: none; background: #2563eb; color: white; cursor: pointer; }
-.hidden { display: none; }
-.btn-start { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #2563eb; color: white; font-size: 16px; cursor: pointer; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  background: #f3f3f3;
+  color: #1a1a1a;
+  min-height: 100vh;
+  overflow: hidden;
+}
+/* Windows 11 Mica-style title bar */
+.titlebar {
+  height: 32px;
+  background: linear-gradient(180deg, #f9f9f9 0%, #f3f3f3 100%);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid #e5e5e5;
+  -webkit-app-region: drag;
+}
+.titlebar-icon { width: 16px; height: 16px; margin-right: 8px; }
+.titlebar-icon svg { width: 16px; height: 16px; fill: #0078d4; }
+.titlebar-text { font-size: 12px; color: #1a1a1a; }
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 32px);
+  padding: 16px;
+  background: #fafafa;
+}
+/* Windows 11 Card style */
+.card {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.avatar {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+  border-radius: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.avatar svg { width: 32px; height: 32px; fill: white; }
+.header-text h1 { font-size: 20px; font-weight: 600; color: #1a1a1a; }
+.header-text p { font-size: 13px; color: #666; margin-top: 2px; }
+/* Windows 11 Form controls */
+label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #1a1a1a; }
+select, input[type="password"], input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
+  background: white;
+  color: #1a1a1a;
+  font-size: 14px;
+  margin-bottom: 16px;
+  transition: border-color 0.1s;
+}
+select:focus, input:focus {
+  outline: none;
+  border-color: #0078d4;
+  box-shadow: 0 0 0 1px #0078d4;
+}
+/* Windows 11 Accent button */
+.btn-primary {
+  width: 100%;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background: #0078d4;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.btn-primary:hover { background: #006cbd; }
+.btn-secondary {
+  padding: 8px 16px;
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
+  background: white;
+  color: #1a1a1a;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-secondary:hover { background: #f5f5f5; }
+/* Chat area */
+.chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+  overflow: hidden;
+}
+.messages {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  background: #fafafa;
+}
+.message {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  max-width: 80%;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.message.user {
+  background: #0078d4;
+  color: white;
+  margin-left: auto;
+  border-bottom-right-radius: 4px;
+}
+.message.assistant {
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-bottom-left-radius: 4px;
+}
+.input-area {
+  padding: 12px 16px;
+  background: white;
+  border-top: 1px solid #e5e5e5;
+  display: flex;
+  gap: 8px;
+}
+.input-area input {
+  flex: 1;
+  margin-bottom: 0;
+  border-radius: 20px;
+  padding: 10px 16px;
+}
+.input-area button {
+  padding: 10px 20px;
+  border-radius: 20px;
+}
+.hidden { display: none !important; }
+/* Link styles */
+.help-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #0078d4;
+  text-decoration: none;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.help-link:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="header">
-    <div class="avatar"><svg viewBox="0 0 24 24"><path d="${avatarSvgPath}"/></svg></div>
-    <h1>${agent.name || "AI Agent"}</h1>
-  </div>
-  <div id="setup" class="setup-card">
-    <h2>Get Started</h2>
-    <label>Provider</label>
-    <select id="provider"><option value="ollama">Ollama (Free)</option><option value="openai">OpenAI</option><option value="groq">Groq</option></select>
-    <div id="apiKeySection" style="display:none;"><label>API Key</label><input type="password" id="apiKey"></div>
-    <button class="btn-start" onclick="startChat()">Start</button>
+<div class="titlebar">
+  <div class="titlebar-icon"><svg viewBox="0 0 24 24"><path d="${avatarSvgPath}"/></svg></div>
+  <span class="titlebar-text">${agent.name || "AI Agent"}</span>
+</div>
+<div class="app-container">
+  <div id="setup">
+    <div class="card">
+      <div class="header">
+        <div class="avatar"><svg viewBox="0 0 24 24"><path d="${avatarSvgPath}"/></svg></div>
+        <div class="header-text">
+          <h1>${agent.name || "AI Agent"}</h1>
+          <p>${agent.goal || "Your AI assistant"}</p>
+        </div>
+      </div>
+      <label>AI Provider</label>
+      <select id="provider" onchange="updateProvider()">
+        <option value="ollama">Ollama (Free - runs locally)</option>
+        <option value="openai">OpenAI</option>
+        <option value="groq">Groq (Fast)</option>
+      </select>
+      <div id="apiKeySection" style="display:none;">
+        <label>API Key</label>
+        <input type="password" id="apiKey" placeholder="Enter your API key">
+      </div>
+      <button class="btn-primary" onclick="startChat()">Start Chatting</button>
+      <a class="help-link" href="https://ollama.ai" target="_blank">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        Get free local AI with Ollama
+      </a>
+    </div>
   </div>
   <div id="chatArea" class="chat-container hidden">
     <div id="messages" class="messages"></div>
     <div class="input-area">
-      <input type="text" id="userInput" onkeypress="if(event.key==='Enter')sendMessage()">
-      <button onclick="sendMessage()">Send</button>
+      <input type="text" id="userInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
+      <button class="btn-primary" onclick="sendMessage()">Send</button>
     </div>
   </div>
 </div>
 <script>
 var config = {provider:'ollama',apiKey:'',model:'llama3.1'};
 var chatHistory = [];
-var systemPrompt = ` + "`" + `${agent.personality || "You are a helpful AI assistant."}` + "`" + `;
-document.getElementById('provider').onchange = function() {
-  config.provider = this.value;
-  document.getElementById('apiKeySection').style.display = this.value === 'ollama' ? 'none' : 'block';
-};
+var systemPrompt = \`${agent.personality || "You are a helpful AI assistant."}\`;
+var models = {ollama:'llama3.1',openai:'gpt-4o-mini',groq:'llama-3.1-70b-versatile'};
+
+function updateProvider() {
+  config.provider = document.getElementById('provider').value;
+  config.model = models[config.provider];
+  document.getElementById('apiKeySection').style.display = config.provider === 'ollama' ? 'none' : 'block';
+}
+
 function startChat() {
   config.apiKey = document.getElementById('apiKey').value;
-  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('setup').style.display = 'none';
   document.getElementById('chatArea').classList.remove('hidden');
-  addMessage("Hello! How can I help?", 'assistant');
+  addMessage("Hello! How can I help you today?", 'assistant');
 }
+
 function addMessage(text, role) {
   var div = document.createElement('div');
   div.className = 'message ' + role;
   div.textContent = text;
   document.getElementById('messages').appendChild(div);
+  document.getElementById('messages').scrollTop = 99999;
 }
+
 function sendMessage() {
   var input = document.getElementById('userInput');
-  var msg = input.value.trim();
+  var msg = input.value.replace(/^\\s+|\\s+$/g, '');
   if (!msg) return;
   input.value = '';
   addMessage(msg, 'user');
   chatHistory.push({role:'user',content:msg});
-  addMessage('Thinking...', 'assistant');
+  
+  var typing = document.createElement('div');
+  typing.className = 'message assistant';
+  typing.id = 'typing';
+  typing.textContent = 'Thinking...';
+  typing.style.opacity = '0.6';
+  document.getElementById('messages').appendChild(typing);
+  
   var xhr = new ActiveXObject('MSXML2.XMLHTTP');
   var url = config.provider === 'ollama' ? 'http://localhost:11434/api/chat' : 
             config.provider === 'openai' ? 'https://api.openai.com/v1/chat/completions' :
@@ -1188,18 +1368,21 @@ function sendMessage() {
   if (config.provider !== 'ollama') xhr.setRequestHeader('Authorization', 'Bearer ' + config.apiKey);
   xhr.onreadystatechange = function() {
     if (xhr.readyState === 4) {
-      var msgs = document.getElementById('messages');
-      msgs.removeChild(msgs.lastChild);
+      var t = document.getElementById('typing');
+      if (t) t.parentNode.removeChild(t);
       if (xhr.status === 200) {
         var data = JSON.parse(xhr.responseText);
         var reply = config.provider === 'ollama' ? data.message.content : data.choices[0].message.content;
         addMessage(reply, 'assistant');
-      } else { addMessage('Error: ' + xhr.status, 'assistant'); }
+        chatHistory.push({role:'assistant',content:reply});
+      } else { 
+        addMessage('Connection error. Make sure Ollama is running or check your API key.', 'assistant'); 
+      }
     }
   };
   var body = config.provider === 'ollama' ? 
-    JSON.stringify({model:'llama3.1',messages:[{role:'system',content:systemPrompt}].concat(chatHistory),stream:false}) :
-    JSON.stringify({model:config.provider==='openai'?'gpt-4o-mini':'llama-3.1-70b-versatile',messages:[{role:'system',content:systemPrompt}].concat(chatHistory)});
+    JSON.stringify({model:config.model,messages:[{role:'system',content:systemPrompt}].concat(chatHistory),stream:false}) :
+    JSON.stringify({model:config.model,messages:[{role:'system',content:systemPrompt}].concat(chatHistory)});
   xhr.send(body);
 }
 </script>
@@ -1215,11 +1398,12 @@ function sendMessage() {
   URL.revokeObjectURL(url);
 }
 
-// Generate Mac/Linux HTML file
+// Generate Mac/Linux HTML file with native macOS styling
 export async function generateMacApp(agent: PWAAgentConfig): Promise<void> {
   const agentName = agent.name?.replace(/\s+/g, "_").toLowerCase() || "my_agent";
   const avatarSvgPath = getAvatarSvgPath(agent.avatar || "bot");
   
+  // macOS native style HTML application
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1227,67 +1411,252 @@ export async function generateMacApp(agent: PWAAgentConfig): Promise<void> {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${agent.name || "AI Agent"}</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-body { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); min-height: 100vh; color: white; }
-.container { max-width: 600px; margin: 0 auto; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; }
-.header { text-align: center; padding: 30px 0; }
-.avatar { width: 80px; height: 80px; background: #2563eb; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(37, 99, 235, 0.5); }
-.avatar svg { width: 48px; height: 48px; fill: white; }
-h1 { font-size: 24px; margin-bottom: 8px; }
-.setup-card { background: rgba(255,255,255,0.1); border-radius: 16px; padding: 24px; margin-bottom: 20px; backdrop-filter: blur(10px); }
-.setup-card select, .setup-card input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; margin-bottom: 16px; }
-.chat-container { flex: 1; display: flex; flex-direction: column; background: rgba(255,255,255,0.05); border-radius: 16px; overflow: hidden; min-height: 400px; }
-.messages { flex: 1; padding: 20px; overflow-y: auto; }
-.message { margin-bottom: 16px; padding: 12px 16px; border-radius: 12px; max-width: 85%; word-wrap: break-word; }
-.message.user { background: #2563eb; margin-left: auto; }
-.message.assistant { background: rgba(255,255,255,0.1); }
-.input-area { padding: 16px; background: rgba(0,0,0,0.2); display: flex; gap: 12px; }
-.input-area input { flex: 1; padding: 14px 18px; border-radius: 24px; border: none; background: rgba(255,255,255,0.1); color: white; font-size: 15px; outline: none; }
-.input-area button { padding: 14px 24px; border-radius: 24px; border: none; background: #2563eb; color: white; cursor: pointer; font-weight: 600; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+/* macOS Window Chrome */
+.window {
+  max-width: 480px;
+  margin: 40px auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 22px 70px 4px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+/* macOS Title Bar */
+.titlebar {
+  height: 52px;
+  background: linear-gradient(180deg, #f6f6f6 0%, #e8e8e8 100%);
+  border-bottom: 1px solid #d1d1d1;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  position: relative;
+}
+.traffic-lights {
+  display: flex;
+  gap: 8px;
+}
+.traffic-light {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.12);
+}
+.traffic-light.close { background: linear-gradient(180deg, #ff5f57 0%, #e0443e 100%); }
+.traffic-light.minimize { background: linear-gradient(180deg, #febc2e 0%, #d4a22a 100%); }
+.traffic-light.maximize { background: linear-gradient(180deg, #28c840 0%, #1aab29 100%); }
+.titlebar-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  font-weight: 500;
+  color: #3d3d3d;
+}
+/* macOS Content */
+.content {
+  padding: 24px;
+}
+.header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.avatar {
+  width: 72px;
+  height: 72px;
+  background: linear-gradient(180deg, #007aff 0%, #0055d4 100%);
+  border-radius: 16px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,122,255,0.3);
+}
+.avatar svg { width: 40px; height: 40px; fill: white; }
+.header h1 { font-size: 22px; font-weight: 600; color: #1d1d1f; margin-bottom: 4px; }
+.header p { font-size: 14px; color: #86868b; }
+/* macOS Form Controls */
+.form-group { margin-bottom: 16px; }
+label { 
+  display: block; 
+  font-size: 13px; 
+  font-weight: 500; 
+  color: #1d1d1f; 
+  margin-bottom: 6px; 
+}
+select, input[type="password"], input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  background: white;
+  color: #1d1d1f;
+  font-size: 15px;
+  -webkit-appearance: none;
+  transition: all 0.2s;
+}
+select:focus, input:focus {
+  outline: none;
+  border-color: #007aff;
+  box-shadow: 0 0 0 4px rgba(0,122,255,0.15);
+}
+/* macOS Button */
+.btn-primary {
+  width: 100%;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #007aff 0%, #0066d6 100%);
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.btn-primary:hover { 
+  background: linear-gradient(180deg, #0088ff 0%, #007aff 100%);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+/* Chat Area */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 400px;
+  background: #f5f5f7;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.messages {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+.message {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 18px;
+  max-width: 80%;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.message.user {
+  background: linear-gradient(180deg, #007aff 0%, #0066d6 100%);
+  color: white;
+  margin-left: auto;
+  border-bottom-right-radius: 6px;
+}
+.message.assistant {
+  background: white;
+  color: #1d1d1f;
+  border: 1px solid #e5e5e5;
+  border-bottom-left-radius: 6px;
+}
+.input-area {
+  padding: 12px;
+  background: white;
+  border-top: 1px solid #e5e5e5;
+  display: flex;
+  gap: 8px;
+}
+.input-area input {
+  flex: 1;
+  border-radius: 20px;
+  padding: 10px 16px;
+}
+.input-area button {
+  padding: 10px 18px;
+  border-radius: 20px;
+  border: none;
+  background: #007aff;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+}
 .hidden { display: none !important; }
-.btn-start { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #2563eb; color: white; font-size: 16px; font-weight: 600; cursor: pointer; }
+/* Help Link */
+.help-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+  color: #007aff;
+  font-size: 13px;
+  text-decoration: none;
+}
+.help-link:hover { text-decoration: underline; }
+.help-link svg { width: 14px; height: 14px; }
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="header">
-    <div class="avatar"><svg viewBox="0 0 24 24"><path d="${avatarSvgPath}"/></svg></div>
-    <h1>${agent.name || "AI Agent"}</h1>
-    <p style="opacity:0.7">${agent.goal || "Your AI assistant"}</p>
-  </div>
-  <div id="setup" class="setup-card">
-    <h2 style="margin-bottom:16px">Get Started</h2>
-    <label style="display:block;margin-bottom:8px">Provider</label>
-    <select id="provider" onchange="updateProvider()">
-      <option value="ollama">Ollama (Free - Local)</option>
-      <option value="openai">OpenAI</option>
-      <option value="anthropic">Anthropic</option>
-      <option value="groq">Groq</option>
-    </select>
-    <div id="apiKeySection" style="display:none;">
-      <label style="display:block;margin-bottom:8px">API Key</label>
-      <input type="password" id="apiKey" placeholder="Enter your API key">
+<div class="window">
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <div class="traffic-light close"></div>
+      <div class="traffic-light minimize"></div>
+      <div class="traffic-light maximize"></div>
     </div>
-    <button class="btn-start" onclick="startChat()">Start Chatting</button>
+    <span class="titlebar-title">${agent.name || "AI Agent"}</span>
   </div>
-  <div id="chatArea" class="chat-container hidden">
-    <div id="messages" class="messages"></div>
-    <div class="input-area">
-      <input type="text" id="userInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
-      <button onclick="sendMessage()">Send</button>
+  <div class="content">
+    <div id="setup">
+      <div class="header">
+        <div class="avatar"><svg viewBox="0 0 24 24"><path d="${avatarSvgPath}"/></svg></div>
+        <h1>${agent.name || "AI Agent"}</h1>
+        <p>${agent.goal || "Your AI assistant"}</p>
+      </div>
+      <div class="form-group">
+        <label>AI Provider</label>
+        <select id="provider" onchange="updateProvider()">
+          <option value="ollama">Ollama (Free - runs locally)</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="groq">Groq (Fast)</option>
+        </select>
+      </div>
+      <div id="apiKeySection" class="form-group hidden">
+        <label>API Key</label>
+        <input type="password" id="apiKey" placeholder="Enter your API key">
+      </div>
+      <button class="btn-primary" onclick="startChat()">Start Chatting</button>
+      <a class="help-link" href="https://ollama.ai" target="_blank">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        Get free local AI with Ollama
+      </a>
+    </div>
+    <div id="chatArea" class="chat-container hidden">
+      <div id="messages" class="messages"></div>
+      <div class="input-area">
+        <input type="text" id="userInput" placeholder="Message..." onkeypress="if(event.key==='Enter')sendMessage()">
+        <button onclick="sendMessage()">Send</button>
+      </div>
     </div>
   </div>
 </div>
 <script>
 const config = { provider: 'ollama', apiKey: '', model: 'llama3.1' };
 const chatHistory = [];
-const systemPrompt = ` + "`" + `${agent.personality || "You are a helpful AI assistant."}` + "`" + `;
+const systemPrompt = \`${agent.personality || "You are a helpful AI assistant."}\`;
 const models = { ollama: 'llama3.1', openai: 'gpt-4o-mini', anthropic: 'claude-3-5-sonnet-20241022', groq: 'llama-3.1-70b-versatile' };
 
 function updateProvider() {
   config.provider = document.getElementById('provider').value;
   config.model = models[config.provider];
-  document.getElementById('apiKeySection').style.display = config.provider === 'ollama' ? 'none' : 'block';
+  const apiSection = document.getElementById('apiKeySection');
+  if (config.provider === 'ollama') {
+    apiSection.classList.add('hidden');
+  } else {
+    apiSection.classList.remove('hidden');
+  }
 }
 
 function startChat() {
@@ -1317,7 +1686,7 @@ async function sendMessage() {
   typing.className = 'message assistant';
   typing.id = 'typing';
   typing.textContent = 'Thinking...';
-  typing.style.opacity = '0.7';
+  typing.style.opacity = '0.6';
   document.getElementById('messages').appendChild(typing);
   
   try {
@@ -1347,11 +1716,11 @@ async function sendMessage() {
     else if (config.provider === 'anthropic') reply = data.content?.[0]?.text;
     else reply = data.choices?.[0]?.message?.content;
     
-    addMessage(reply || 'Error: No response', 'assistant');
+    addMessage(reply || 'Connection error. Make sure Ollama is running or check your API key.', 'assistant');
     chatHistory.push({role: 'assistant', content: reply});
   } catch (err) {
     document.getElementById('typing')?.remove();
-    addMessage('Error: ' + err.message, 'assistant');
+    addMessage('Connection error. Make sure Ollama is running or check your API key.', 'assistant');
   }
 }
 </script>
