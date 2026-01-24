@@ -16,22 +16,12 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Download,
   Globe,
-  Monitor,
-  CheckCircle2,
   Loader2,
   Terminal,
-  Bot,
   ExternalLink,
   Sparkles,
-  Apple,
-  HelpCircle,
   Rocket,
 } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 interface DeploymentModalProps {
   open: boolean;
@@ -42,8 +32,6 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
   const { builderState } = useAgentStore();
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isAgentFileDownloading, setIsAgentFileDownloading] = useState(false);
-  const [selectedOS, setSelectedOS] = useState<"windows" | "mac" | "linux" | null>(null);
   const currentAgent = builderState.currentAgent;
 
   const handlePythonDownload = async () => {
@@ -64,70 +52,6 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
       });
     } finally {
       setIsDownloading(false);
-    }
-  };
-
-  const handleAgentFileDownload = async (os: "windows" | "mac" | "linux") => {
-    setSelectedOS(os);
-    setIsAgentFileDownloading(true);
-    
-    try {
-      // Use currentAgent or create a default config
-      const agent = currentAgent || {
-        id: crypto.randomUUID(),
-        name: "My Agent",
-        goal: "A helpful AI assistant",
-        personality: "Friendly and helpful",
-        tools: [],
-        systemPrompt: "You are a helpful AI assistant.",
-      };
-      
-      const agentConfig = {
-        version: "1.0",
-        agent: {
-          id: agent.id || crypto.randomUUID(),
-          name: agent.name || "My Agent",
-          goal: agent.goal || "",
-          personality: agent.personality || "",
-          tools: agent.tools || [],
-          systemPrompt: agent.systemPrompt || "",
-        },
-        avatar: "bot",
-        createdAt: new Date().toISOString(),
-      };
-
-      const jsonString = JSON.stringify(agentConfig, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement("a");
-      const safeName = (agent.name || "MyAgent").replace(/[^a-zA-Z0-9]/g, "") || "MyAgent";
-      a.href = url;
-      a.download = `${safeName}.agentforge`;
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-      
-      // Cleanup after a short delay
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
-
-      toast({
-        title: "Agent file downloaded!",
-        description: "Double-click to open in AgentForge Runner (once installed)",
-      });
-    } catch (error) {
-      console.error("Download error:", error);
-      toast({
-        title: "Download failed",
-        description: "There was an error creating the agent file. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsAgentFileDownloading(false);
-      setSelectedOS(null);
     }
   };
 
@@ -157,93 +81,20 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
         <ScrollArea className="max-h-[60vh] pr-2">
           <div className="space-y-4 py-2">
             
-            {/* Primary CTA - Desktop Download */}
+            {/* Primary Option - Run in Browser */}
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="p-5">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Monitor className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">Download & Run on Desktop</h3>
-                      <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      One-time install of AgentForge Runner - no Terminal needed
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 mb-3" data-testid="desktop-download-buttons">
-                  <Button
-                    variant="outline"
-                    className="h-auto py-3 flex flex-col items-center gap-1.5"
-                    onClick={() => handleAgentFileDownload("windows")}
-                    disabled={isAgentFileDownloading}
-                    data-testid="button-download-windows"
-                  >
-                    {isAgentFileDownloading && selectedOS === "windows" ? (
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    ) : (
-                      <Monitor className="w-6 h-6" />
-                    )}
-                    <span className="text-sm font-medium">Windows</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-auto py-3 flex flex-col items-center gap-1.5"
-                    onClick={() => handleAgentFileDownload("mac")}
-                    disabled={isAgentFileDownloading}
-                    data-testid="button-download-mac"
-                  >
-                    {isAgentFileDownloading && selectedOS === "mac" ? (
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    ) : (
-                      <Apple className="w-6 h-6" />
-                    )}
-                    <span className="text-sm font-medium">Mac</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-auto py-3 flex flex-col items-center gap-1.5"
-                    onClick={() => handleAgentFileDownload("linux")}
-                    disabled={isAgentFileDownloading}
-                    data-testid="button-download-linux"
-                  >
-                    {isAgentFileDownloading && selectedOS === "linux" ? (
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    ) : (
-                      <Terminal className="w-6 h-6" />
-                    )}
-                    <span className="text-sm font-medium">Linux</span>
-                  </Button>
-                </div>
-
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs" data-testid="text-desktop-help">
-                  <Rocket className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                  <p className="text-amber-800 dark:text-amber-200">
-                    <strong>AgentForge Runner coming soon!</strong> Download your .agentforge file now - 
-                    you'll be able to double-click it once the Runner app is released.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Secondary Option - Run in Browser */}
-            <Card className="border-green-500/30">
-              <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                    <Globe className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Globe className="w-5 h-5 text-primary" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-medium">Run in Browser Now</h3>
-                      <Badge className="text-xs bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">Works Now</Badge>
+                      <h3 className="font-semibold">Run in Browser</h3>
+                      <Badge className="text-xs bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">Instant</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Chat instantly - no download required
+                      Chat with your agent right now - no install needed
                     </p>
                   </div>
                   <Button
