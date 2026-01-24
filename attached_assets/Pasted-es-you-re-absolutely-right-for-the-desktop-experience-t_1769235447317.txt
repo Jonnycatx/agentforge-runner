@@ -1,0 +1,84 @@
+es, you're absolutely right — for the desktop experience to feel truly dummy-proof and magical (a native-looking window with avatar + chat prompt that "just opens" after download), users need a one-time download and install of the AgentForge Runner app. After that, every agent they build can be downloaded as a tiny config file that auto-opens in the Runner with zero extra steps.
+This keeps the process simple:
+
+One-time Runner install (~15-25 MB, cross-platform).
+Then, every agent = tiny file download → double-click → instant chat window with avatar.
+
+Here's how to make this seamless in the builder window (the main /builder page in your web app), so users see clear, low-friction options without confusion.
+Recommended UI in the Builder Window (After "Complete" Step)
+When the builder reaches "complete" (agent ready), replace the current deployment modal or add a prominent success banner + big buttons right in the builder interface (right pane or centered overlay). Make it feel celebratory and guiding.
+Visual Layout Suggestion (in the right preview pane or modal):
+
+Confetti / Success Animation (Framer Motion)
+Brief burst + text:
+"Your Agent is Ready!"
+Primary CTA – Biggest & Most Prominent Button"Download & Run on Desktop (Easiest)"
+Large blue button (Apple-style rounded, bold text)
+Subtext: "One-time install of AgentForge Runner (recommended – no Terminal needed)"
+On click: Downloads Runner installer if not detected (or prompts to install), then downloads the tiny .agentforge file for this agent.
+Goal: 80-90% of users choose this path.
+
+Secondary Options (Smaller, Below)
+"Run in Browser Now" → Opens the web agent chat tab immediately (no install).
+Subtext: "Quick test – no download required"
+"Download Python Package (Advanced)" → Current ZIP with run.sh / run.bat.
+Subtext: "Requires Python installed – more steps"
+(Make this smaller / grayed out to de-emphasize)
+
+Small Help Text / Tooltip Nearby
+"First time? Download AgentForge Runner once (takes ~1 minute). After that, double-click any agent file to chat instantly with your avatar!"
+
+
+Step-by-Step User Flow (What the User Sees & Does)
+
+User finishes building → sees success banner in builder window.
+Clicks big blue "Download & Run on Desktop" button.
+If Runner not installed (detect via browser check or just always offer):
+Browser downloads Runner installer:
+Mac: AgentForgeRunner-macOS.dmg or .app.zip
+Windows: AgentForgeRunner-Windows.exe
+Linux: .AppImage or .deb
+
+Shows overlay/inline instructions:
+"Step 1: Install AgentForge Runner (one-time)"
+"Double-click the downloaded file and follow the prompts (like installing any app)."
+Tiny progress spinner + "Installing… (this only happens once)"
+
+
+After Runner installed (or if already installed):
+Automatically downloads the agent file: MyWebDesigner.agentforge (~10-50 KB JSON bundle).
+Shows message:
+"Agent downloaded! Double-click MyWebDesigner.agentforge to open it"
+Optional: "It should open automatically in AgentForge Runner."
+
+
+User double-clicks the .agentforge file:
+Runner launches (or brings window forward).
+Small native-style window appears: avatar at top, chat history (if any), prompt field at bottom.
+If model not connected: Runner shows native prompt "Connect Ollama or API key to start chatting" (same form as web).
+
+
+What to Tell Your Devs (Copy-Paste Directive)
+"Update the builder window (/builder) completion state:
+
+After 'complete' step, show a centered success banner + big primary button:
+'Download & Run on Desktop (Easiest)'
+Subtext: 'Install AgentForge Runner once, then double-click any agent file'
+
+On click:
+Check if Runner is installed (optional via custom protocol handler like agentforge://check, or just always download installer first time).
+Download Runner installer (.dmg / .exe / .AppImage) if needed.
+Then download .agentforge file (JSON with config + avatar choice + prompt).
+
+File association in Tauri:
+Register .agentforge extension → open Runner app.
+Runner loads config → opens avatar chat window immediately.
+
+Fallbacks:
+Secondary button: 'Run in Browser' (opens web agent tab).
+Tertiary: 'Download Python ZIP' (keep for now, but smaller/less prominent).
+
+Add inline help text: 'Runner install is one-time only. After that, agents open like any desktop app – no Terminal, no extra work.'
+
+This makes desktop deployment truly dummy-proof: one install, then double-click forever."
+This approach minimizes extra work — most users will install Runner once (guided), then future agents are effortless double-clicks. It matches how apps like Notion, Discord, or even some AI tools (e.g., local LLM frontends) work.
