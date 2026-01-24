@@ -257,72 +257,97 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
               </CardContent>
             </Card>
 
-            {/* Tertiary Option - Python Package */}
+            {/* Tertiary Option - Python Package with Setup Guide */}
             <Card className="border-muted">
-              <CardContent className="p-4">
+              <CardContent className="p-4 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
                     <Terminal className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-muted-foreground">Download Python Package</h3>
-                      <Tooltip>
-                        <TooltipTrigger data-testid="tooltip-python-advanced">
-                          <Badge variant="outline" className="text-xs">Advanced</Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Requires Python installed on your computer</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <h3 className="font-medium">Run on Desktop (Python)</h3>
+                      <Badge variant="outline" className="text-xs">Works Now</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      For developers - includes source code
+                      Run your agent locally with free AI via Ollama
                     </p>
                   </div>
                   <Button
-                    variant="ghost"
                     onClick={handlePythonDownload}
                     disabled={isDownloading}
                     data-testid="button-download-python"
                   >
                     {isDownloading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
                     ) : (
-                      <Download className="w-4 h-4" />
+                      <Download className="w-4 h-4 mr-2" />
                     )}
+                    Download
                   </Button>
+                </div>
+
+                {/* Step by step setup guide */}
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3" data-testid="section-setup-guide">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    One-Time Setup (5 minutes)
+                  </h4>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-start gap-3" data-testid="setup-step-1">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-xs font-bold text-primary">1</span>
+                      </div>
+                      <div>
+                        <p className="font-medium">Install Python</p>
+                        <a 
+                          href="https://www.python.org/downloads/" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary underline text-xs inline-flex items-center gap-1"
+                          data-testid="link-python-download"
+                        >
+                          python.org/downloads <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <p className="text-xs text-muted-foreground mt-0.5">Click "Download Python" - use all default options</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3" data-testid="setup-step-2">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-xs font-bold text-primary">2</span>
+                      </div>
+                      <div>
+                        <p className="font-medium">Install Ollama (Free Local AI)</p>
+                        <a 
+                          href="https://ollama.com/download" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary underline text-xs inline-flex items-center gap-1"
+                          data-testid="link-ollama-download"
+                        >
+                          ollama.com/download <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <p className="text-xs text-muted-foreground mt-0.5">Download for your system, then run: <code className="bg-muted px-1 rounded">ollama pull llama3.2</code></p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3" data-testid="setup-step-3">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-xs font-bold text-primary">3</span>
+                      </div>
+                      <div>
+                        <p className="font-medium">Download & Run Your Agent</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Unzip the download, then double-click <code className="bg-muted px-1 rounded">run_mac.command</code> (Mac) or <code className="bg-muted px-1 rounded">run_windows.bat</code> (Windows)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
-
-            {/* How it works */}
-            <div className="pt-2" data-testid="section-how-it-works">
-              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
-                How Desktop Mode Works
-              </h4>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="space-y-2" data-testid="step-1">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                    <span className="text-sm font-bold text-primary">1</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Install Runner<br />(one time)</p>
-                </div>
-                <div className="space-y-2" data-testid="step-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                    <span className="text-sm font-bold text-primary">2</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Download<br />.agentforge file</p>
-                </div>
-                <div className="space-y-2" data-testid="step-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                    <span className="text-sm font-bold text-primary">3</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Double-click<br />& chat!</p>
-                </div>
-              </div>
-            </div>
 
           </div>
         </ScrollArea>
