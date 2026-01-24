@@ -1727,54 +1727,13 @@ async function sendMessage() {
 </body>
 </html>`;
 
-  // Create a proper macOS .app bundle as a ZIP
-  const zip = new JSZip();
-  const appName = (agent.name || "AI Agent").replace(/[^a-zA-Z0-9 ]/g, "");
-  const appBundle = `${appName}.app`;
-  
-  // Info.plist - macOS app metadata
-  const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleName</key>
-  <string>${appName}</string>
-  <key>CFBundleDisplayName</key>
-  <string>${appName}</string>
-  <key>CFBundleIdentifier</key>
-  <string>com.agentforge.${agentName}</string>
-  <key>CFBundleVersion</key>
-  <string>1.0</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>CFBundleExecutable</key>
-  <string>run</string>
-  <key>LSMinimumSystemVersion</key>
-  <string>10.13</string>
-  <key>NSHighResolutionCapable</key>
-  <true/>
-  <key>LSUIElement</key>
-  <false/>
-</dict>
-</plist>`;
-
-  // Executable script that opens the HTML file in the default browser
-  const runScript = `#!/bin/bash
-DIR="$( cd "$( dirname "\${BASH_SOURCE[0]}" )" && pwd )"
-open "$DIR/../Resources/app.html"
-`;
-
-  // Add files to the .app bundle structure
-  zip.file(`${appBundle}/Contents/Info.plist`, infoPlist);
-  zip.file(`${appBundle}/Contents/MacOS/run`, runScript);
-  zip.file(`${appBundle}/Contents/Resources/app.html`, htmlContent);
-  
-  // Generate and download the ZIP
-  const content = await zip.generateAsync({ type: "blob" });
-  const url = URL.createObjectURL(content);
+  // Download as a single HTML file that opens directly in browser
+  // This is the simplest approach that works on any Mac without permissions issues
+  const blob = new Blob([htmlContent], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${appName}.app.zip`;
+  a.download = `${agentName}.html`;
   a.click();
   URL.revokeObjectURL(url);
 }

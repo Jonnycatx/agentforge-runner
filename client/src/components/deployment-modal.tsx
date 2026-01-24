@@ -397,7 +397,7 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                           <Monitor className="w-8 h-8" />
                         )}
                         <span className="font-medium">Windows</span>
-                        <span className="text-xs text-muted-foreground">Native .exe app</span>
+                        <span className="text-xs text-muted-foreground">Native chat app</span>
                       </Button>
                       <Button
                         variant="outline"
@@ -412,7 +412,7 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                           <Apple className="w-8 h-8" />
                         )}
                         <span className="font-medium">Mac</span>
-                        <span className="text-xs text-muted-foreground">Native .app bundle</span>
+                        <span className="text-xs text-muted-foreground">Native chat app</span>
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground text-center mt-3">
