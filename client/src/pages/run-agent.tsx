@@ -74,9 +74,13 @@ export default function RunAgent() {
     selectedProviderId, 
     selectedModelId,
     currentAgent,
+    builderState,
     selectProvider,
     selectModel
   } = useAgentStore();
+  
+  // Use currentAgent, or fall back to the agent being built in the builder
+  const activeAgent = currentAgent || builderState.currentAgent;
   
   const { theme, setTheme } = useTheme();
   
@@ -94,15 +98,15 @@ export default function RunAgent() {
   const selectedProvider = providers.find(p => p.id === selectedProviderId);
   const hasConnectedProvider = providers.some(p => p.isConnected);
 
-  const agentConfig: AgentConfig = currentAgent ? {
-    id: currentAgent.id || agentId,
-    name: currentAgent.name || "AI Assistant",
-    goal: currentAgent.goal || "Help users with their questions",
-    personality: currentAgent.personality || "friendly and helpful",
-    tools: currentAgent.tools || [],
+  const agentConfig: AgentConfig = activeAgent ? {
+    id: activeAgent.id || agentId,
+    name: activeAgent.name || "AI Assistant",
+    goal: activeAgent.goal || "Help users with their questions",
+    personality: activeAgent.personality || "friendly and helpful",
+    tools: activeAgent.tools || [],
     modelId: selectedModelId || "gpt-4o",
     providerId: selectedProviderId || "openai",
-    systemPrompt: currentAgent.systemPrompt
+    systemPrompt: activeAgent.systemPrompt
   } : {
     id: agentId,
     name: "AI Assistant",
