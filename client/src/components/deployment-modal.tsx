@@ -357,51 +357,65 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                     <div className="flex-1">
                       <h3 className="font-semibold mb-1">One-Click Desktop Runner</h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Download a Python package with smart scripts that handle everything automatically.
+                        Full Python/LangChain agent with advanced tools and capabilities.
                       </p>
-                      <div className="space-y-2 text-sm">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Checks for Python automatically
+                          Advanced tool support
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Creates venv and installs dependencies
+                          LangChain powered
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Complete LangChain agent ready to run
+                          Customizable code
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          100% private - runs on your machine
+                          100% private
                         </div>
                       </div>
                     </div>
                   </div>
-                  <Button 
-                    className="w-full mt-4" 
-                    onClick={handleDownload}
-                    disabled={isDownloading || downloadComplete}
-                    data-testid="button-download-local"
-                  >
-                    {isDownloading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Preparing Download...
-                      </>
-                    ) : downloadComplete ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                        Downloaded!
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-2" />
-                        Download Desktop Package
-                      </>
-                    )}
-                  </Button>
+                  
+                  {/* OS Selection for Desktop */}
+                  <div className="mt-4 pt-4 border-t">
+                    <Label className="text-sm font-medium mb-3 block">Choose Your System</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        variant="outline"
+                        className="h-auto py-4 flex flex-col items-center gap-2"
+                        onClick={handleDownload}
+                        disabled={isDownloading}
+                        data-testid="button-download-desktop-windows"
+                      >
+                        {isDownloading ? (
+                          <Loader2 className="w-8 h-8 animate-spin" />
+                        ) : (
+                          <Monitor className="w-8 h-8" />
+                        )}
+                        <span className="font-medium">Windows</span>
+                        <span className="text-xs text-muted-foreground">run.bat included</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-auto py-4 flex flex-col items-center gap-2"
+                        onClick={handleDownload}
+                        disabled={isDownloading}
+                        data-testid="button-download-desktop-mac"
+                      >
+                        {isDownloading ? (
+                          <Loader2 className="w-8 h-8 animate-spin" />
+                        ) : (
+                          <Apple className="w-8 h-8" />
+                        )}
+                        <span className="font-medium">Mac / Linux</span>
+                        <span className="text-xs text-muted-foreground">run.sh included</span>
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -534,23 +548,43 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
               </Card>
 
               <Card className="border-primary/20">
-                <CardContent className="p-6 text-center">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-4">
-                    <Smartphone className="w-10 h-10 text-primary" />
-                  </div>
-                  <h4 className="font-medium mb-2">Install on Your Phone</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Open the PWA web app on your mobile browser, then tap "Add to Home Screen" to install.
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    <Button onClick={handlePWADownload} disabled={isPWADownloading} data-testid="button-mobile-pwa">
-                      <Download className="w-4 h-4 mr-2" />
-                      Get PWA for Mobile
+                <CardContent className="p-6">
+                  <h4 className="font-medium mb-4 text-center">Choose Your Device</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      className="h-auto py-4 flex flex-col items-center gap-2"
+                      onClick={() => handleOSDownload("mac")}
+                      disabled={isOSDownloading}
+                      data-testid="button-download-ios"
+                    >
+                      {isOSDownloading && selectedOS === "mac" ? (
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                      ) : (
+                        <Apple className="w-8 h-8" />
+                      )}
+                      <span className="font-medium">iPhone / iPad</span>
+                      <span className="text-xs text-muted-foreground">Open in Safari</span>
                     </Button>
-                    <p className="text-xs text-muted-foreground">
-                      Works on iOS Safari & Android Chrome
-                    </p>
+                    <Button
+                      variant="outline"
+                      className="h-auto py-4 flex flex-col items-center gap-2"
+                      onClick={() => handleOSDownload("mac")}
+                      disabled={isOSDownloading}
+                      data-testid="button-download-android"
+                    >
+                      {isOSDownloading && selectedOS === "mac" ? (
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                      ) : (
+                        <Smartphone className="w-8 h-8" />
+                      )}
+                      <span className="font-medium">Android</span>
+                      <span className="text-xs text-muted-foreground">Open in Chrome</span>
+                    </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground text-center mt-4">
+                    Transfer the file to your phone, open it, then tap "Add to Home Screen"
+                  </p>
                 </CardContent>
               </Card>
 
