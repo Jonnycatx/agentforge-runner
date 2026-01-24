@@ -120,32 +120,37 @@ The app runs on port 5000 with both frontend and backend served together.
 - **Voice Input Button**: Placeholder for speech-to-text functionality
 - **Deployment Integration**: "Run in Browser Now" button opens agent in new tab from deployment modal
 
-### Future: Native Desktop App (AgentForge Runner)
-The vision is a lightweight Tauri-based desktop app that provides seamless "double-click to run" experience:
-- **Tauri + Python Subprocess**: Small native shell (~15-30MB) that spawns Python agent logic invisibly
+### Native Desktop App (AgentForge Runner)
+Complete Tauri v2 + Python desktop app in `runner/` folder:
+- **Tauri + Python Sidecar**: Small native shell (~15-30MB) that spawns Python agent server
 - **File Association**: Register `.agentforge` files so they open directly in the Runner
-- **Native Feel**: Chat window looks like the web version but runs as a native app
-- **Model Connection Dialog**: Friendly modal with avatar to connect Ollama or API keys
-- **Reference Implementations**: 
-  - https://github.com/dieharders/example-tauri-v2-python-server-sidecar
-  - https://github.com/AlanSynn/vue-tauri-fastapi-sidecar-template
-- **Current Status**: Coming soon - browser and Python package options work now
+- **Native Feel**: Beautiful chat window matching web design
+- **GitHub Actions**: Auto-builds Mac (.dmg), Windows (.msi), Linux (.AppImage) on release
 
 #### Runner Architecture
 ```
-agentforge-runner/
+runner/
+├── src/                         # React Frontend
+│   ├── App.tsx                  # Chat UI with settings
+│   ├── main.tsx                 # Entry point
+│   └── index.css                # Tailwind styles
 ├── src-tauri/
-│   ├── Cargo.toml
+│   ├── Cargo.toml               # Rust dependencies
 │   ├── tauri.conf.json          # File associations, bundle config
 │   ├── src/main.rs              # Spawns Python, handles .agentforge files
 │   └── resources/python/
-│       ├── agent_runner.py      # FastAPI server + agent logic
-│       └── requirements.txt
-├── src/                         # Frontend (React)
-│   ├── App.tsx                  # Reuse web chat UI
-│   └── components/ChatWindow.tsx
+│       └── agent_server.py      # HTTP server for AI inference
+├── .github/workflows/
+│   └── build.yml                # Auto-build on GitHub release
 └── package.json
 ```
+
+#### How to Release the Runner
+1. Push the code to GitHub
+2. Update `GITHUB_REPO` in `client/src/components/deployment-modal.tsx`
+3. Create a release tag: `git tag v1.0.0 && git push --tags`
+4. GitHub Actions auto-builds installers and creates a release
+5. Users can then download from the deployment modal
 
 #### Key Implementation Details
 1. **File Association** (tauri.conf.json): Register `.agentforge` extension
