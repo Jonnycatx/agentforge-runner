@@ -85,7 +85,7 @@ The app runs on port 5000 with both frontend and backend served together.
 - **Featured Agents Section**: Landing page now shows 6 featured templates with click-to-build
 - **Enhanced Gallery**: Category filters (Coding, Design, Research, etc.), sort options (Recent, Name, Tools)
 - **One-Click Remix**: Fork button navigates directly to Builder with agent pre-loaded
-- **Deployment Modal**: Desktop-first design with primary "Download & Run on Desktop" (Windows/Mac/Linux .agentforge files), secondary "Run in Browser Now", tertiary "Download Python Package (Advanced)"
+- **Deployment Modal**: Browser-first design with "Run in Browser" (primary/instant), "Run on Desktop with Python" (3-step guide with OS detection), and "Native Desktop App Coming Soon" teaser
 - **Export Package**: Complete .zip download with Python script, config, requirements.txt, run scripts, and README
 - **Ollama Setup Guide**: Built-in tips for setting up free local inference with Ollama
 - **Real Inference**: Client-side API calls to user-connected providers (OpenAI, Anthropic, Groq, Google, xAI, Ollama)
@@ -119,3 +119,14 @@ The app runs on port 5000 with both frontend and backend served together.
 - **Model Connection Modal**: Prompts users to connect a model provider before first message
 - **Voice Input Button**: Placeholder for speech-to-text functionality
 - **Deployment Integration**: "Run in Browser Now" button opens agent in new tab from deployment modal
+
+### Future: Native Desktop App (AgentForge Runner)
+The vision is a lightweight Tauri-based desktop app that provides seamless "double-click to run" experience:
+- **Tauri + Python Subprocess**: Small native shell (~15-30MB) that spawns Python agent logic invisibly
+- **File Association**: Register `.agentforge` files so they open directly in the Runner
+- **Native Feel**: Chat window looks like the web version but runs as a native app
+- **Model Connection Dialog**: Friendly modal with avatar to connect Ollama or API keys
+- **Reference Implementations**: 
+  - https://github.com/dieharders/example-tauri-v2-python-server-sidecar
+  - https://github.com/AlanSynn/vue-tauri-fastapi-sidecar-template
+- **Current Status**: Coming soon - browser and Python package options work now

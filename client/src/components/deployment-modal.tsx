@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,6 +21,8 @@ import {
   ExternalLink,
   Sparkles,
   Rocket,
+  Monitor,
+  Clock,
 } from "lucide-react";
 
 interface DeploymentModalProps {
@@ -28,11 +30,26 @@ interface DeploymentModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+type OSType = "mac" | "windows" | "linux" | "unknown";
+
+function detectOS(): OSType {
+  const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes("mac")) return "mac";
+  if (userAgent.includes("win")) return "windows";
+  if (userAgent.includes("linux")) return "linux";
+  return "unknown";
+}
+
 export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
   const { builderState } = useAgentStore();
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [detectedOS, setDetectedOS] = useState<OSType>("unknown");
   const currentAgent = builderState.currentAgent;
+
+  useEffect(() => {
+    setDetectedOS(detectOS());
+  }, []);
 
   const handlePythonDownload = async () => {
     if (!currentAgent) return;
@@ -61,6 +78,24 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
     onOpenChange(false);
   };
 
+  const getRunScriptName = () => {
+    switch (detectedOS) {
+      case "mac": return "run_mac.command";
+      case "linux": return "run_linux.sh";
+      case "windows": return "run_windows.bat";
+      default: return "run_mac.command or run_windows.bat";
+    }
+  };
+
+  const getOSDisplayName = () => {
+    switch (detectedOS) {
+      case "mac": return "Mac";
+      case "windows": return "Windows";
+      case "linux": return "Linux";
+      default: return "your computer";
+    }
+  };
+
   if (!currentAgent) return null;
 
   return (
@@ -81,34 +116,38 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
         <ScrollArea className="max-h-[60vh] pr-2">
           <div className="space-y-4 py-2">
             
-            {/* Primary Option - Run in Browser */}
+            {/* Primary Option - Run in Browser (Zero Friction) */}
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="p-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Globe className="w-5 h-5 text-primary" />
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Globe className="w-6 h-6 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">Run in Browser</h3>
-                      <Badge className="text-xs bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">Instant</Badge>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-lg">Run in Browser</h3>
+                      <Badge className="text-xs bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">
+                        Recommended
+                      </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Chat with your agent right now - no install needed
+                      Start chatting instantly - works on any device
                     </p>
                   </div>
-                  <Button
-                    onClick={handleRunInBrowser}
-                    data-testid="button-run-in-browser"
-                  >
-                    Open
-                    <ExternalLink className="w-4 h-4 ml-2" />
-                  </Button>
                 </div>
+                <Button
+                  onClick={handleRunInBrowser}
+                  className="w-full mt-4"
+                  size="lg"
+                  data-testid="button-run-in-browser"
+                >
+                  Open Chat
+                  <ExternalLink className="w-4 h-4 ml-2" />
+                </Button>
               </CardContent>
             </Card>
 
-            {/* Tertiary Option - Python Package with Setup Guide */}
+            {/* Python Package Option with OS-Specific Guidance */}
             <Card className="border-muted">
               <CardContent className="p-4 space-y-4">
                 <div className="flex items-center gap-3">
@@ -116,52 +155,43 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                     <Terminal className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">Run on Desktop (Python)</h3>
-                      <Badge variant="outline" className="text-xs">Works Now</Badge>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-medium">Run on {getOSDisplayName()}</h3>
+                      <Badge variant="outline" className="text-xs">Python</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Run your agent locally with free AI via Ollama
+                      Download and run offline with free local AI
                     </p>
                   </div>
-                  <Button
-                    onClick={handlePythonDownload}
-                    disabled={isDownloading}
-                    data-testid="button-download-python"
-                  >
-                    {isDownloading ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    ) : (
-                      <Download className="w-4 h-4 mr-2" />
-                    )}
-                    Download
-                  </Button>
                 </div>
 
                 {/* Step by step setup guide */}
                 <div className="bg-muted/50 rounded-lg p-4 space-y-3" data-testid="section-setup-guide">
                   <h4 className="text-sm font-medium flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-primary" />
-                    Quick Setup (2 steps)
+                    Quick Setup
                   </h4>
                   
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-3 text-sm">
                     <div className="flex items-start gap-3" data-testid="setup-step-1">
                       <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-xs font-bold text-primary">1</span>
                       </div>
-                      <div>
-                        <p className="font-medium">Install Python (one time)</p>
+                      <div className="flex-1">
+                        <p className="font-medium">Get Python (free, one-time)</p>
                         <a 
                           href="https://www.python.org/downloads/" 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-primary underline text-xs inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 mt-1"
                           data-testid="link-python-download"
                         >
-                          python.org/downloads <ExternalLink className="w-3 h-3" />
+                          <Button variant="outline" size="sm" className="h-7 text-xs">
+                            Download Python
+                            <ExternalLink className="w-3 h-3 ml-1" />
+                          </Button>
                         </a>
-                        <p className="text-xs text-muted-foreground mt-0.5">Click the big yellow button, install with defaults</p>
+                        <p className="text-xs text-muted-foreground mt-1">Click the yellow button, install with all defaults</p>
                       </div>
                     </div>
 
@@ -169,17 +199,73 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                       <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-xs font-bold text-primary">2</span>
                       </div>
-                      <div>
-                        <p className="font-medium">Download & Run</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Unzip, double-click <code className="bg-muted px-1 rounded">run_mac.command</code> or <code className="bg-muted px-1 rounded">run_windows.bat</code>
+                      <div className="flex-1">
+                        <p className="font-medium">Get free AI with Ollama (optional)</p>
+                        <a 
+                          href="https://ollama.com/download" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-1"
+                          data-testid="link-ollama-download"
+                        >
+                          <Button variant="outline" size="sm" className="h-7 text-xs">
+                            Download Ollama
+                            <ExternalLink className="w-3 h-3 ml-1" />
+                          </Button>
+                        </a>
+                        <p className="text-xs text-muted-foreground mt-1">Free unlimited AI that runs on your computer</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3" data-testid="setup-step-3">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-xs font-bold text-primary">3</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">Download & run your agent</p>
+                        <Button
+                          onClick={handlePythonDownload}
+                          disabled={isDownloading}
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs mt-1"
+                          data-testid="button-download-python"
+                        >
+                          {isDownloading ? (
+                            <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                          ) : (
+                            <Download className="w-3 h-3 mr-1" />
+                          )}
+                          Download Agent Package
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Unzip the file, then double-click <code className="bg-muted px-1 rounded font-mono">{getRunScriptName()}</code>
                         </p>
                       </div>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                  <div className="text-xs text-muted-foreground pt-1 border-t border-muted">
-                    <span className="font-medium">Free AI option:</span> Install <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="text-primary underline" data-testid="link-ollama-download">Ollama</a> for unlimited local inference
+            {/* Coming Soon - Native Desktop App */}
+            <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
+                    <Monitor className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-medium text-muted-foreground">Native Desktop App</h3>
+                      <Badge variant="outline" className="text-xs border-muted-foreground/30 text-muted-foreground">
+                        <Clock className="w-3 h-3 mr-1" />
+                        Coming Soon
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground/70">
+                      Double-click to run - no Python needed. Install once, open .agentforge files forever.
+                    </p>
                   </div>
                 </div>
               </CardContent>
