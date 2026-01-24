@@ -1,0 +1,37 @@
+Native Desktop App - Implementation Plan
+This is absolutely achievable. Here's a concrete roadmap:
+Recommended: Tauri + Python Sidecar
+┌─────────────────────────────────────────────────────────┐│                    AgentForge Runner                     ││                     (.app / .dmg)                        │├─────────────────────────────────────────────────────────┤│  ┌─────────────────────────────────────────────────┐    ││  │            Tauri Native Window                   │    ││  │  ┌─────────────────────────────────────────┐    │    ││  │  │         Avatar Image                     │    │    ││  │  │         Agent Name                       │    │    ││  │  └─────────────────────────────────────────┘    │    ││  │  ┌─────────────────────────────────────────┐    │    ││  │  │                                         │    │    ││  │  │         Chat History                    │    │    ││  │  │                                         │    │    ││  │  └─────────────────────────────────────────┘    │    ││  │  ┌─────────────────────────────────────────┐    │    ││  │  │  Type message...            [Send]      │    │    ││  │  └─────────────────────────────────────────┘    │    ││  └─────────────────────────────────────────────────┘    ││                         │                                ││                         ▼                                ││  ┌─────────────────────────────────────────────────┐    ││  │     Python Sidecar (Hidden Background Process)   │    ││  │     - FastAPI server on localhost:8765           │    ││  │     - Loads .agentforge config                   │    ││  │     - Connects to Ollama / Cloud APIs            │    ││  └─────────────────────────────────────────────────┘    │└─────────────────────────────────────────────────────────┘
+Phase 1: Create the Runner App Structure
+agentforge-runner/├── src-tauri/│   ├── Cargo.toml│   ├── tauri.conf.json│   ├── src/│   │   └── main.rs              # Spawns Python, handles .agentforge files│   └── resources/│       └── python/│           ├── agent_runner.py   # FastAPI server + agent logic│           └── requirements.txt├── src/                          # Frontend (React/Svelte)│   ├── App.tsx│   ├── components/│   │   ├── Avatar.tsx│   │   ├── ChatWindow.tsx│   │   └── SetupDialog.tsx       # First-run: API key / Ollama setup│   └── styles/└── package.json
+Phase 2: Key Implementation Details
+1. File Association (.agentforge)
+// tauri.conf.json{  "bundle": {    "macOS": {      "fileAssociations": [{        "ext": ["agentforge"],        "name": "AgentForge Agent",        "role": "Editor"      }]    }  }}
+2. Python Sidecar Spawn (Rust)
+// main.rsuse tauri::Manager;use std::process::{Command, Stdio};fn spawn_python_backend(config_path: &str) {    Command::new("python3")        .args(["agent_runner.py", "--config", config_path])        .stdout(Stdio::null())        .stderr(Stdio::null())        .spawn()        .expect("Failed to start agent backend");}
+3. Agent Runner (Python FastAPI)
+# agent_runner.pyfrom fastapi import FastAPIfrom pydantic import BaseModelimport json, uvicornapp = FastAPI()class Message(BaseModel):    content: str@app.post("/chat")async def chat(msg: Message):    # Load agent config, call Ollama/API, return response    response = await run_agent(msg.content)    return {"response": response}if __name__ == "__main__":    uvicorn.run(app, host="127.0.0.1", port=8765)
+4. Frontend Chat Component
+// ChatWindow.tsxconst sendMessage = async (text: string) => {  const res = await fetch("http://127.0.0.1:8765/chat", {    method: "POST",    body: JSON.stringify({ content: text }),  });  const data = await res.json();  addMessage({ role: "assistant", content: data.response });};
+Phase 3: Build & Distribution
+Step	Command	Output
+Dev	npm run tauri dev	Hot-reload testing
+Build	npm run tauri build	target/release/bundle/
+macOS	--bundles dmg	AgentForge.dmg
+Windows	--bundles msi	AgentForge.msi
+Linux	--bundles appimage	AgentForge.AppImage
+User Experience Flow
+1. User builds agent in web app   └─> Clicks "Deploy to Desktop"   2. First time: Downloads AgentForge Runner (.dmg)   └─> Drag to Applications   3. Downloads .agentforge file (tiny JSON config)   └─> Double-click to open4. Runner launches:   ┌────────────────────────────┐   │  🤖 [Avatar]               │   │  "Sales Assistant"         │   │                            │   │  Hi! I'm your Sales        │   │  Assistant. How can I      │   │  help today?               │   │                            │   │  ________________________  │   │  |Type message...    [>]|  │   └────────────────────────────┘5. Python runs silently in background   └─> Connects to Ollama (local) or cloud API
+Estimated Timeline
+Phase	Task	Time
+1	Fork Tauri + Python sidecar example	1 day
+2	Integrate chat UI + agent logic	3-4 days
+3	File association + .agentforge parsing	1 day
+4	First-run setup dialog (avatar + API)	1-2 days
+5	Build pipeline + code signing	1-2 days
+6	Testing + polish	2-3 days
+Total		~2 weeks
+Resources to Start
+Tauri + Python Sidecar Example: https://github.com/AlanSynn/vue-tauri-fastapi-sidecar-template
+Tauri File Associations: https://tauri.app/v2/guides/features/deep-linking
+PyInstaller (alternative): Bundle Python into single executable

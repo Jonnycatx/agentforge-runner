@@ -130,3 +130,45 @@ The vision is a lightweight Tauri-based desktop app that provides seamless "doub
   - https://github.com/dieharders/example-tauri-v2-python-server-sidecar
   - https://github.com/AlanSynn/vue-tauri-fastapi-sidecar-template
 - **Current Status**: Coming soon - browser and Python package options work now
+
+#### Runner Architecture
+```
+agentforge-runner/
+├── src-tauri/
+│   ├── Cargo.toml
+│   ├── tauri.conf.json          # File associations, bundle config
+│   ├── src/main.rs              # Spawns Python, handles .agentforge files
+│   └── resources/python/
+│       ├── agent_runner.py      # FastAPI server + agent logic
+│       └── requirements.txt
+├── src/                         # Frontend (React)
+│   ├── App.tsx                  # Reuse web chat UI
+│   └── components/ChatWindow.tsx
+└── package.json
+```
+
+#### Key Implementation Details
+1. **File Association** (tauri.conf.json): Register `.agentforge` extension
+2. **Python Sidecar**: Spawn `python3 agent_runner.py --config /path/to/file.agentforge` silently
+3. **FastAPI Backend**: Local server on port 8765 for chat messages
+4. **Frontend**: Fetch from `http://127.0.0.1:8765/chat` for responses
+
+#### Build Commands
+- Dev: `npm run tauri dev`
+- macOS: `npm run tauri build --bundles dmg`
+- Windows: `npm run tauri build --bundles msi`
+- Linux: `npm run tauri build --bundles appimage`
+
+#### User Flow
+1. User builds agent in web app → Clicks "Deploy to Desktop"
+2. First time: Downloads AgentForge Runner (.dmg/.msi)
+3. Downloads `.agentforge` file (tiny JSON config)
+4. Double-click `.agentforge` → Runner opens with avatar + chat
+
+#### Estimated Timeline: ~2 weeks
+- Phase 1: Fork Tauri + Python sidecar example (1 day)
+- Phase 2: Integrate chat UI + agent logic (3-4 days)
+- Phase 3: File association + .agentforge parsing (1 day)
+- Phase 4: First-run setup dialog (1-2 days)
+- Phase 5: Build pipeline + code signing (1-2 days)
+- Phase 6: Testing + polish (2-3 days)
