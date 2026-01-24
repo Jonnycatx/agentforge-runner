@@ -156,15 +156,6 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
     }
   };
 
-  const getRunnerDownloadUrl = () => {
-    switch (detectedOS) {
-      case "mac": return "https://github.com/agentforge/runner/releases/latest/download/AgentForge-Runner.dmg";
-      case "windows": return "https://github.com/agentforge/runner/releases/latest/download/AgentForge-Runner.msi";
-      case "linux": return "https://github.com/agentforge/runner/releases/latest/download/AgentForge-Runner.AppImage";
-      default: return "https://github.com/agentforge/runner/releases";
-    }
-  };
-
   if (!currentAgent) return null;
 
   return (
@@ -216,7 +207,7 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
               </CardContent>
             </Card>
 
-            {/* Option 2 - Native Desktop App */}
+            {/* Option 2 - Native Desktop App (Coming Soon) */}
             <Card className="border-muted">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center gap-3">
@@ -226,86 +217,57 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-lg">Native Desktop App</h3>
-                      <Badge variant="outline" className="text-xs">
-                        {getOSIcon()}
-                        <span className="ml-1">{getOSDisplayName()}</span>
+                      <Badge className="text-xs bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30">
+                        Coming Soon
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Double-click to run - beautiful native experience
+                      Double-click to run - no Python needed
                     </p>
                   </div>
                 </div>
 
                 <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                  <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    Two Easy Steps
-                  </h4>
-                  
-                  <div className="space-y-3 text-sm">
-                    {/* Step 1 - Download Runner */}
-                    <div className="flex items-start gap-3" data-testid="native-step-1">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs font-bold text-primary">1</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">Get AgentForge Runner (one time)</p>
-                        <a 
-                          href={getRunnerDownloadUrl()}
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 mt-1"
-                          data-testid="link-runner-download"
-                        >
-                          <Button variant="outline" size="sm" className="h-8">
-                            {getOSIcon()}
-                            <span className="ml-1">Download for {getOSDisplayName()}</span>
-                            <Download className="w-3 h-3 ml-1" />
-                          </Button>
-                        </a>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {detectedOS === "mac" ? "Open the .dmg and drag to Applications" : 
-                           detectedOS === "windows" ? "Run the installer with default settings" :
-                           "Make it executable and run"}
-                        </p>
-                      </div>
-                    </div>
+                  <p className="text-sm text-muted-foreground">
+                    The AgentForge Runner desktop app is being prepared for release. Once available, you'll be able to:
+                  </p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
+                      Install once, run any agent forever
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
+                      Double-click .agentforge files to open
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />
+                      Beautiful native chat window with avatar
+                    </li>
+                  </ul>
 
-                    {/* Step 2 - Download Agent File */}
-                    <div className="flex items-start gap-3" data-testid="native-step-2">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs font-bold text-primary">2</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">Download your agent file</p>
-                        <Button
-                          onClick={handleAgentFileDownload}
-                          disabled={isAgentFileDownloading}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 mt-1"
-                          data-testid="button-download-agentforge"
-                        >
-                          {isAgentFileDownloading ? (
-                            <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                          ) : (
-                            <Download className="w-3 h-3 mr-1" />
-                          )}
-                          Download {currentAgent.name}.agentforge
-                        </Button>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Double-click to open in AgentForge Runner
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-2 pt-2 border-t border-muted text-xs text-muted-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>
-                      <span className="font-medium">Free AI included:</span> Works with Ollama for unlimited local inference, or connect OpenAI/Anthropic API keys
-                    </span>
+                  <div className="pt-3 border-t border-muted">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Want to try it now? Download your agent file:
+                    </p>
+                    <Button
+                      onClick={handleAgentFileDownload}
+                      disabled={isAgentFileDownloading}
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      data-testid="button-download-agentforge"
+                    >
+                      {isAgentFileDownloading ? (
+                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                      ) : (
+                        <Download className="w-3 h-3 mr-1" />
+                      )}
+                      Download {currentAgent.name}.agentforge
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      This file will work with the Runner when it's released. For now, use the browser or Python options above.
+                    </p>
                   </div>
                 </div>
               </CardContent>
