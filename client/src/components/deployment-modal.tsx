@@ -177,26 +177,26 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                       <SelectedAvatarIcon className="w-8 h-8 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold mb-1">Open as Web App (PWA)</h3>
+                      <h3 className="font-semibold mb-1">One-Click Web App</h3>
                       <p className="text-sm text-muted-foreground mb-3">
-                        Generate a standalone Progressive Web App that can be installed to your desktop or home screen.
+                        Download, unzip, double-click run.bat (Windows) or run.sh (Mac/Linux) - opens automatically!
                       </p>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Installable to desktop
+                          Just double-click to run
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          3D avatar header
+                          Choose your avatar
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Works offline-capable
+                          Works with any AI provider
                         </div>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Native app experience
+                          Install as desktop app
                         </div>
                       </div>
                     </div>
