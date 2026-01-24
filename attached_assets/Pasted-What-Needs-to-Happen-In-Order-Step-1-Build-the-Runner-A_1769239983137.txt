@@ -1,0 +1,18 @@
+What Needs to Happen (In Order)
+Step 1: Build the Runner App First
+Before users can download anything, someone needs to actually build the Tauri + Python app I outlined earlier.
+Step 2: Create GitHub Repo & Release
+github.com/agentforge/runner/├── releases/│   └── v1.0.0/│       ├── AgentForge-Runner.dmg      (macOS)│       ├── AgentForge-Runner.msi      (Windows)│       └── AgentForge-Runner.AppImage (Linux)
+Step 3: Then the Download Link Works
+Tell Replit This:
+The Runner app needs to be built before we can offer downloads. Here's what to do:OPTION A: Build the Runner Now1. Create a new Tauri v2 project in this repo under /runner2. Follow the architecture I provided earlier (Tauri + Python sidecar)3. Build for macOS/Windows/Linux4. Create GitHub releases with the binaries5. Then the download link will workOPTION B: Update UI to "Coming Soon" (Temporary)Until the Runner is built, change the deployment modal to show:- "Native Desktop App - Coming Soon"- Keep the "Run in Browser" option as the primary/working option- Add "Build from Source" link to the runner code (for developers)For now, do OPTION B so users aren't confused by broken download links.Then we can work on OPTION A as a separate task.
+Quick Fix for the UI
+Ask Replit to update the deployment modal like this:
+// Instead of a download link that doesn't work:<Button disabled className="opacity-50">  <Download className="w-4 h-4 mr-2" />  Download for Mac  <Badge variant="outline" className="ml-2">Coming Soon</Badge></Button>// Show what DOES work:<Button onClick={runInBrowser}>  <Globe className="w-4 h-4 mr-2" />  Run in Browser (Ready Now)</Button>
+Summary
+Question	Answer
+Did Replit do something wrong?	No - they correctly identified the issue
+Is the Runner built?	No - it's just planned, not created
+Can users download it now?	No - the file doesn't exist
+What should happen?	Build the Runner OR show "Coming Soon"
+Want me to create the actual Runner app scaffold in your local repo so you have something real to deploy?
