@@ -291,7 +291,7 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                 <div className="bg-muted/50 rounded-lg p-4 space-y-3" data-testid="section-setup-guide">
                   <h4 className="text-sm font-medium flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-primary" />
-                    One-Time Setup (5 minutes)
+                    Quick Setup (2 steps)
                   </h4>
                   
                   <div className="space-y-2 text-sm">
@@ -300,7 +300,7 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                         <span className="text-xs font-bold text-primary">1</span>
                       </div>
                       <div>
-                        <p className="font-medium">Install Python</p>
+                        <p className="font-medium">Install Python (one time)</p>
                         <a 
                           href="https://www.python.org/downloads/" 
                           target="_blank" 
@@ -310,7 +310,7 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                         >
                           python.org/downloads <ExternalLink className="w-3 h-3" />
                         </a>
-                        <p className="text-xs text-muted-foreground mt-0.5">Click "Download Python" - use all default options</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Click the big yellow button, install with defaults</p>
                       </div>
                     </div>
 
@@ -319,31 +319,16 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                         <span className="text-xs font-bold text-primary">2</span>
                       </div>
                       <div>
-                        <p className="font-medium">Install Ollama (Free Local AI)</p>
-                        <a 
-                          href="https://ollama.com/download" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-primary underline text-xs inline-flex items-center gap-1"
-                          data-testid="link-ollama-download"
-                        >
-                          ollama.com/download <ExternalLink className="w-3 h-3" />
-                        </a>
-                        <p className="text-xs text-muted-foreground mt-0.5">Download for your system, then run: <code className="bg-muted px-1 rounded">ollama pull llama3.2</code></p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3" data-testid="setup-step-3">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs font-bold text-primary">3</span>
-                      </div>
-                      <div>
-                        <p className="font-medium">Download & Run Your Agent</p>
+                        <p className="font-medium">Download & Run</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Unzip the download, then double-click <code className="bg-muted px-1 rounded">run_mac.command</code> (Mac) or <code className="bg-muted px-1 rounded">run_windows.bat</code> (Windows)
+                          Unzip, double-click <code className="bg-muted px-1 rounded">run_mac.command</code> or <code className="bg-muted px-1 rounded">run_windows.bat</code>
                         </p>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground pt-1 border-t border-muted">
+                    <span className="font-medium">Free AI option:</span> Install <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="text-primary underline" data-testid="link-ollama-download">Ollama</a> for unlimited local inference
                   </div>
                 </div>
               </CardContent>
