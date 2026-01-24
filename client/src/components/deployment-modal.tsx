@@ -68,45 +68,61 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
   };
 
   const handleAgentFileDownload = async (os: "windows" | "mac" | "linux") => {
-    if (!currentAgent) return;
-    
     setSelectedOS(os);
     setIsAgentFileDownloading(true);
     
     try {
+      // Use currentAgent or create a default config
+      const agent = currentAgent || {
+        id: crypto.randomUUID(),
+        name: "My Agent",
+        goal: "A helpful AI assistant",
+        personality: "Friendly and helpful",
+        tools: [],
+        systemPrompt: "You are a helpful AI assistant.",
+      };
+      
       const agentConfig = {
         version: "1.0",
         agent: {
-          id: currentAgent.id || crypto.randomUUID(),
-          name: currentAgent.name || "My Agent",
-          goal: currentAgent.goal || "",
-          personality: currentAgent.personality || "",
-          tools: currentAgent.tools || [],
-          systemPrompt: currentAgent.systemPrompt || "",
+          id: agent.id || crypto.randomUUID(),
+          name: agent.name || "My Agent",
+          goal: agent.goal || "",
+          personality: agent.personality || "",
+          tools: agent.tools || [],
+          systemPrompt: agent.systemPrompt || "",
         },
         avatar: "bot",
         createdAt: new Date().toISOString(),
       };
 
-      const blob = new Blob([JSON.stringify(agentConfig, null, 2)], { type: "application/json" });
+      const jsonString = JSON.stringify(agentConfig, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
       const url = URL.createObjectURL(blob);
+      
       const a = document.createElement("a");
-      const safeName = (currentAgent.name || "MyAgent").replace(/[^a-zA-Z0-9]/g, "");
+      const safeName = (agent.name || "MyAgent").replace(/[^a-zA-Z0-9]/g, "") || "MyAgent";
       a.href = url;
       a.download = `${safeName}.agentforge`;
+      a.style.display = "none";
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      
+      // Cleanup after a short delay
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
 
       toast({
         title: "Agent file downloaded!",
-        description: "Double-click to open in AgentForge Runner",
+        description: "Double-click to open in AgentForge Runner (once installed)",
       });
     } catch (error) {
+      console.error("Download error:", error);
       toast({
         title: "Download failed",
-        description: "There was an error creating the agent file",
+        description: "There was an error creating the agent file. Please try again.",
         variant: "destructive",
       });
     } finally {
