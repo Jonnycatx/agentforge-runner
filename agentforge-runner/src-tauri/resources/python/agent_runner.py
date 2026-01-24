@@ -1,25 +1,21 @@
 #!/usr/bin/env python3
 """
 AgentForge Runner - Python Backend
-Runs as a FastAPI server that handles chat requests and communicates with AI models.
+FastAPI server that handles chat requests and communicates with AI models.
 """
 
 import argparse
 import json
 import os
-import sys
-from pathlib import Path
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Initialize FastAPI app
 app = FastAPI(title="AgentForge Runner")
 
-# Add CORS middleware for Tauri frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,57 +24,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global state
-agent_config: Optional[dict] = None
-model_provider: Optional[str] = None
-api_key: Optional[str] = None
+# Global agent config
+agent_config: dict = {}
 
 
 class ChatMessage(BaseModel):
     content: str
 
 
-class ChatResponse(BaseModel):
-    response: str
+class ConfigLoad(BaseModel):
+    path: str
 
 
-class ConfigResponse(BaseModel):
-    version: str
-    agent: dict
-    avatar: str
-    createdAt: str
-
-
-class ModelConfig(BaseModel):
+class ProviderConfig(BaseModel):
     provider: str
     api_key: Optional[str] = None
     model: Optional[str] = None
 
 
-def load_agent_config(config_path: str) -> dict:
+def load_config_from_file(path: str) -> dict:
     """Load agent configuration from .agentforge file."""
     try:
-        with open(config_path, 'r') as f:
+        with open(path, 'r') as f:
             return json.load(f)
     except Exception as e:
-        print(f"Error loading config: {e}")
+        print(f"Error loading config from {path}: {e}")
         return get_default_config()
 
 
 def get_default_config() -> dict:
     """Return default agent configuration."""
     return {
-        "version": "1.0",
-        "agent": {
-            "id": "default",
-            "name": "AI Assistant",
-            "goal": "Help users with their questions",
-            "personality": "Friendly and helpful",
-            "tools": [],
-            "systemPrompt": "You are a helpful AI assistant."
-        },
-        "avatar": "bot",
-        "createdAt": "2024-01-01T00:00:00Z"
+        "name": "AI Assistant",
+        "goal": "Help users with their questions",
+        "personality": "You are a friendly and helpful AI assistant.",
+        "avatar": "",
+        "provider": "ollama",
+        "model": "llama3.2",
+        "apiKey": "",
+        "temperature": 0.7,
     }
 
 
@@ -172,20 +156,22 @@ async def call_anthropic(message: str, system_prompt: str, api_key: str, model: 
 
 async def run_agent(message: str) -> str:
     """Process a chat message and return the agent's response."""
-    global agent_config, model_provider, api_key
+    global agent_config
     
     if not agent_config:
         return "Agent not configured. Please load an agent configuration."
     
-    system_prompt = agent_config.get("agent", {}).get("systemPrompt", "You are a helpful AI assistant.")
+    system_prompt = agent_config.get("personality", "You are a helpful AI assistant.")
+    provider = agent_config.get("provider", "ollama")
+    model = agent_config.get("model", "llama3.2")
+    api_key = agent_config.get("apiKey", "")
     
-    # Try different providers in order of preference
-    if model_provider == "ollama" or not api_key:
-        return await call_ollama(message, system_prompt)
-    elif model_provider == "openai" and api_key:
-        return await call_openai(message, system_prompt, api_key)
-    elif model_provider == "anthropic" and api_key:
-        return await call_anthropic(message, system_prompt, api_key)
+    if provider == "ollama":
+        return await call_ollama(message, system_prompt, model)
+    elif provider == "openai" and api_key:
+        return await call_openai(message, system_prompt, api_key, model)
+    elif provider == "anthropic" and api_key:
+        return await call_anthropic(message, system_prompt, api_key, model)
     else:
         # Default to Ollama
         return await call_ollama(message, system_prompt)
@@ -194,7 +180,7 @@ async def run_agent(message: str) -> str:
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "agent": agent_config is not None}
+    return {"status": "ok", "agent_loaded": bool(agent_config)}
 
 
 @app.get("/config")
@@ -205,20 +191,35 @@ async def get_config():
     return get_default_config()
 
 
-@app.post("/config/model")
-async def set_model_config(config: ModelConfig):
+@app.post("/load-config")
+async def load_config(data: ConfigLoad):
+    """Load agent config from .agentforge file path."""
+    global agent_config
+    
+    if os.path.exists(data.path):
+        agent_config = load_config_from_file(data.path)
+        return agent_config
+    else:
+        return {"error": f"Config file not found: {data.path}"}
+
+
+@app.post("/config/provider")
+async def set_provider(config: ProviderConfig):
     """Set the model provider configuration."""
-    global model_provider, api_key
-    model_provider = config.provider
-    api_key = config.api_key
-    return {"status": "ok", "provider": model_provider}
+    global agent_config
+    agent_config["provider"] = config.provider
+    if config.api_key:
+        agent_config["apiKey"] = config.api_key
+    if config.model:
+        agent_config["model"] = config.model
+    return {"status": "ok", "provider": config.provider}
 
 
 @app.post("/chat")
-async def chat(msg: ChatMessage) -> ChatResponse:
+async def chat(msg: ChatMessage):
     """Handle chat messages."""
     response = await run_agent(msg.content)
-    return ChatResponse(response=response)
+    return {"response": response}
 
 
 def main():
@@ -232,8 +233,8 @@ def main():
     
     # Load agent configuration
     if args.config and os.path.exists(args.config):
-        agent_config = load_agent_config(args.config)
-        print(f"Loaded agent: {agent_config.get('agent', {}).get('name', 'Unknown')}")
+        agent_config = load_config_from_file(args.config)
+        print(f"Loaded agent: {agent_config.get('name', 'Unknown')}")
     else:
         agent_config = get_default_config()
         print("Using default agent configuration")
