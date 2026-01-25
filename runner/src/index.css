@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* macOS Native-like styling */
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 * {
   user-select: none;
   -webkit-user-select: none;
@@ -12,19 +21,133 @@ input, textarea {
   -webkit-user-select: text;
 }
 
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar - thin and subtle like macOS */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Hide scrollbar until hover */
+.overflow-y-auto:not(:hover)::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+/* Animations */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+.slide-in-from-top {
+  animation: slideDown 0.2s ease-out;
+}
+
+/* Message bubbles - smooth appearance */
+.space-y-4 > * {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Input focus glow */
+.focus-within\:border-blue-500\/50:focus-within {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Button press effect */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Gradient text (for special effects) */
+.gradient-text {
+  background: linear-gradient(135deg, #7c3aed, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass effect for modals */
+.glass {
+  background: rgba(30, 30, 30, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Prevent text selection highlight */
+::selection {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+/* Ensure body fills viewport */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Focus visible for accessibility */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.5);
+  outline-offset: 2px;
+}
+
+/* Placeholder styling */
+::placeholder {
+  color: rgba(156, 163, 175, 0.6);
+}
+
+/* Disable double-tap zoom on mobile */
+button {
+  touch-action: manipulation;
 }

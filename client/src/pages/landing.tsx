@@ -111,18 +111,18 @@ export default function Landing() {
   const steps = [
     {
       step: "01",
-      title: "Connect Your Model",
-      description: "Add your API key from any supported provider or connect to a local Ollama instance.",
+      title: "Choose a Template",
+      description: "Pick from 12 pre-built AI employees - Sales Agent, Email Manager, Research Assistant, and more.",
     },
     {
       step: "02",
-      title: "Describe Your Agent",
-      description: "Tell us what you want your agent to do. Our builder asks clarifying questions to get it right.",
+      title: "Customize Tools",
+      description: "Drag-and-drop tools to give your agent real capabilities. 25+ tools available out of the box.",
     },
     {
       step: "03",
-      title: "Customize & Run",
-      description: "Fine-tune the generated agent, add tools and knowledge, then run it instantly.",
+      title: "Test & Deploy",
+      description: "Run quick tests to verify your agent works, then deploy as an API, download code, or run locally.",
     },
   ];
 

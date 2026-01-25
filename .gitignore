@@ -4,3 +4,31 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/settings.json
+
+# Build artifacts
+build/
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Tauri/Rust
+runner/src-tauri/target/
+
+# Local development
+.local/

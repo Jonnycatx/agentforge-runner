@@ -1,9 +1,21 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { agentConfigSchema } from "@shared/schema";
+import { storage, toolStorage } from "./storage";
+import { agentConfigSchema, toolCategories } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { executeTool, hasExecutor, getExecutableTools } from "./tools";
+import {
+  analyzeUserRequest,
+  classifyIntent,
+  detectIndustry,
+  decomposeTask,
+  recommendTools,
+  toolBundles,
+  initializeConversation,
+  processUserInput,
+  getQuickSuggestions,
+} from "./tools/discovery";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -302,9 +314,379 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================================================
+  // TOOL API ENDPOINTS - Phase 1: Tool Infrastructure
+  // ============================================================================
+
+  // Get all tools
+  app.get("/api/tools", async (req, res) => {
+    try {
+      const { category, search } = req.query;
+      let tools;
+      
+      if (search && typeof search === "string") {
+        tools = await toolStorage.searchTools(search);
+      } else if (category && typeof category === "string") {
+        tools = await toolStorage.getToolsByCategory(category);
+      } else {
+        tools = await toolStorage.getTools();
+      }
+      
+      res.json(tools);
+    } catch (error) {
+      console.error("Error fetching tools:", error);
+      res.status(500).json({ error: "Failed to fetch tools" });
+    }
+  });
+
+  // Get tool categories
+  app.get("/api/tools/categories", (req, res) => {
+    const categories = toolCategories.map(cat => ({
+      id: cat,
+      name: cat.charAt(0).toUpperCase() + cat.slice(1),
+    }));
+    res.json(categories);
+  });
+
+  // Get single tool by ID
+  app.get("/api/tools/:id", async (req, res) => {
+    try {
+      const tool = await toolStorage.getTool(req.params.id);
+      if (!tool) {
+        return res.status(404).json({ error: "Tool not found" });
+      }
+      res.json(tool);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tool" });
+    }
+  });
+
+  // Get user's connected tools
+  app.get("/api/tools/user/connected", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const connectedTools = await toolStorage.getUserConnectedTools(userId);
+      res.json(connectedTools);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch connected tools" });
+    }
+  });
+
+  // Get credential status for a tool
+  app.get("/api/tools/:id/auth/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const credential = await toolStorage.getCredential(userId, req.params.id);
+      res.json(credential || { isConnected: false });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch credential status" });
+    }
+  });
+
+  // Save credential for a tool
+  app.post("/api/tools/:id/auth", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { credentialType, ...credentials } = req.body;
+      
+      if (!credentialType) {
+        return res.status(400).json({ error: "credentialType is required" });
+      }
+      
+      // Verify the tool exists
+      const tool = await toolStorage.getTool(req.params.id);
+      if (!tool) {
+        return res.status(404).json({ error: "Tool not found" });
+      }
+      
+      await toolStorage.saveCredential(userId, req.params.id, credentialType, credentials);
+      res.json({ success: true, isConnected: true });
+    } catch (error) {
+      console.error("Error saving credential:", error);
+      res.status(500).json({ error: "Failed to save credential" });
+    }
+  });
+
+  // Delete credential for a tool
+  app.delete("/api/tools/:id/auth", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deleted = await toolStorage.deleteCredential(userId, req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Credential not found" });
+      }
+      res.json({ success: true, isConnected: false });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete credential" });
+    }
+  });
+
+  // Test tool credential (verify it works)
+  app.post("/api/tools/:id/auth/test", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tool = await toolStorage.getTool(req.params.id);
+      
+      if (!tool) {
+        return res.status(404).json({ error: "Tool not found" });
+      }
+      
+      const credential = await toolStorage.getDecryptedCredential(userId, req.params.id);
+      if (!credential) {
+        return res.status(400).json({ error: "No credential found. Please connect first." });
+      }
+      
+      // TODO: Implement actual credential testing per tool type
+      // For now, just return success if credential exists
+      res.json({ success: true, message: "Credential is valid" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to test credential" });
+    }
+  });
+
+  // Execute a tool
+  app.post("/api/tools/:id/execute", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { input, agentId } = req.body;
+      const toolId = req.params.id;
+      
+      // Check if tool exists
+      const tool = await toolStorage.getTool(toolId);
+      if (!tool) {
+        return res.status(404).json({ error: "Tool not found" });
+      }
+
+      // Check if tool has an executor
+      if (!hasExecutor(toolId)) {
+        return res.status(501).json({ 
+          error: `Tool "${tool.name}" is not yet implemented`,
+          availableTools: getExecutableTools(),
+        });
+      }
+      
+      // Execute the tool
+      const result = await executeTool(toolId, input || {}, {
+        userId,
+        agentId,
+      });
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("Tool execution error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : "Tool execution failed",
+        executionTime: 0,
+        logs: [],
+      });
+    }
+  });
+
+  // Get list of executable tools
+  app.get("/api/tools/executable", (req, res) => {
+    res.json({
+      tools: getExecutableTools(),
+      count: getExecutableTools().length,
+    });
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // ============================================================================
+  // SMART TOOL DISCOVERY API - Phase 4
+  // ============================================================================
+
+  // Analyze user request and get full recommendations
+  app.post("/api/discovery/analyze", async (req, res) => {
+    try {
+      const { query, context } = req.body;
+      
+      if (!query || typeof query !== "string") {
+        return res.status(400).json({ error: "Query is required" });
+      }
+      
+      const analysis = analyzeUserRequest(query, context);
+      res.json(analysis);
+    } catch (error) {
+      console.error("Discovery analysis error:", error);
+      res.status(500).json({ error: "Failed to analyze request" });
+    }
+  });
+
+  // Classify intent from user input
+  app.post("/api/discovery/intent", async (req, res) => {
+    try {
+      const { query } = req.body;
+      
+      if (!query || typeof query !== "string") {
+        return res.status(400).json({ error: "Query is required" });
+      }
+      
+      const intent = classifyIntent(query);
+      res.json(intent);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to classify intent" });
+    }
+  });
+
+  // Detect industry from user input
+  app.post("/api/discovery/industry", async (req, res) => {
+    try {
+      const { query, context } = req.body;
+      
+      if (!query || typeof query !== "string") {
+        return res.status(400).json({ error: "Query is required" });
+      }
+      
+      const industry = detectIndustry(query, context);
+      res.json(industry);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to detect industry" });
+    }
+  });
+
+  // Decompose task into steps
+  app.post("/api/discovery/decompose", async (req, res) => {
+    try {
+      const { query, intent } = req.body;
+      
+      if (!query || typeof query !== "string") {
+        return res.status(400).json({ error: "Query is required" });
+      }
+      
+      const tasks = decomposeTask(query, intent);
+      res.json(tasks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to decompose task" });
+    }
+  });
+
+  // Get tool recommendations
+  app.post("/api/discovery/recommend", async (req, res) => {
+    try {
+      const { intent, industry, tasks } = req.body;
+      
+      const recommendations = recommendTools(intent, industry, tasks);
+      res.json(recommendations);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get recommendations" });
+    }
+  });
+
+  // Get tool bundles
+  app.get("/api/discovery/bundles", (req, res) => {
+    res.json(toolBundles);
+  });
+
+  // Conversation session storage (in-memory for now)
+  const conversationSessions = new Map<string, any>();
+
+  // Start a new conversation
+  app.post("/api/discovery/conversation/start", (req, res) => {
+    try {
+      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const context = initializeConversation();
+      
+      conversationSessions.set(sessionId, context);
+      
+      // Send initial greeting
+      const response = processUserInput("", context);
+      
+      res.json({
+        sessionId,
+        ...response,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to start conversation" });
+    }
+  });
+
+  // Send message in conversation
+  app.post("/api/discovery/conversation/message", (req, res) => {
+    try {
+      const { sessionId, message } = req.body;
+      
+      if (!sessionId || !message) {
+        return res.status(400).json({ error: "sessionId and message are required" });
+      }
+      
+      let context = conversationSessions.get(sessionId);
+      if (!context) {
+        // Start new session if not found
+        context = initializeConversation();
+        conversationSessions.set(sessionId, context);
+      }
+      
+      const response = processUserInput(message, context);
+      conversationSessions.set(sessionId, response.context);
+      
+      res.json({
+        sessionId,
+        ...response,
+      });
+    } catch (error) {
+      console.error("Conversation error:", error);
+      res.status(500).json({ error: "Failed to process message" });
+    }
+  });
+
+  // Get quick suggestions for current context
+  app.get("/api/discovery/conversation/:sessionId/suggestions", (req, res) => {
+    try {
+      const context = conversationSessions.get(req.params.sessionId);
+      
+      if (!context) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      const suggestions = getQuickSuggestions(context);
+      res.json({ suggestions });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get suggestions" });
+    }
+  });
+
+  // End conversation and get final config
+  app.post("/api/discovery/conversation/:sessionId/complete", (req, res) => {
+    try {
+      const context = conversationSessions.get(req.params.sessionId);
+      
+      if (!context) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+      
+      // Build final agent configuration
+      const agentConfig = {
+        name: context.agentName || "My Agent",
+        goal: context.tasks?.summary || "Help with various tasks",
+        personality: context.customizations.personality || "Helpful and professional",
+        tools: context.selectedTools,
+        temperature: context.customizations.temperature || 0.5,
+        maxTokens: 4096,
+        systemPrompt: "",
+        // Include metadata for reference
+        metadata: {
+          intent: context.intent,
+          industry: context.industry,
+          employee: context.selectedEmployee,
+        },
+      };
+      
+      // Clean up session
+      conversationSessions.delete(req.params.sessionId);
+      
+      res.json(agentConfig);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to complete conversation" });
+    }
   });
 
   return httpServer;

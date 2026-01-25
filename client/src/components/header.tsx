@@ -22,6 +22,8 @@ export function Header() {
   const navLinks = [
     { href: "/", label: "Home" },
     { href: "/builder", label: "Builder" },
+    { href: "/employees", label: "Employees" },
+    { href: "/tools", label: "Tools" },
     { href: "/gallery", label: "Gallery" },
   ];
 

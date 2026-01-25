@@ -68,6 +68,47 @@ export default function Builder() {
     document.title = "Agent Builder | AgentForge";
   }, []);
 
+  // Load employee config from sessionStorage if coming from /employees
+  useEffect(() => {
+    const storedConfig = sessionStorage.getItem("employeeConfig");
+    if (storedConfig) {
+      try {
+        const config = JSON.parse(storedConfig);
+        // Apply the employee config to the builder
+        updateBuilderAgent({
+          name: config.name || config.employeeName,
+          goal: config.goal,
+          personality: config.personality,
+          tools: config.tools,
+          systemPrompt: config.systemPrompt,
+          modelId: selectedModelId || "gpt-4o",
+          providerId: selectedProviderId || "openai",
+        });
+        setBuilderStep("complete");
+        
+        // Add a message explaining the loaded employee
+        addBuilderMessage({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `I've loaded the **${config.employeeName || config.name}** employee template!\n\n**Goal:** ${config.goal}\n**Tools:** ${config.tools?.join(", ") || "None"}\n\nYour AI employee is ready. You can test it, make adjustments, or deploy it.`,
+          timestamp: new Date().toISOString(),
+        });
+        
+        setShowTemplates(false);
+        
+        // Clear the stored config
+        sessionStorage.removeItem("employeeConfig");
+        
+        toast({
+          title: "Employee template loaded!",
+          description: `${config.employeeName || config.name} is ready to configure`,
+        });
+      } catch (e) {
+        console.error("Failed to parse employee config:", e);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (currentAgent && currentAgent.name) {
       setShowTemplates(false);

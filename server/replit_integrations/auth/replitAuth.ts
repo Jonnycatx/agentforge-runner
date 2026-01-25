@@ -8,8 +8,14 @@ import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
 
+// Check if running in Replit environment
+const isReplitEnv = !!process.env.REPL_ID;
+
 const getOidcConfig = memoize(
   async () => {
+    if (!isReplitEnv) {
+      return null;
+    }
     return await client.discovery(
       new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
       process.env.REPL_ID!
@@ -20,6 +26,21 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  
+  // For local development, use memory store
+  if (!isReplitEnv) {
+    return session({
+      secret: process.env.SESSION_SECRET || "local-dev-secret-change-in-prod",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        secure: false, // Allow HTTP in local dev
+        maxAge: sessionTtl,
+      },
+    });
+  }
+  
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
@@ -66,6 +87,45 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Skip Replit auth in local development
+  if (!isReplitEnv) {
+    console.log("[Auth] Running in local dev mode - authentication disabled");
+    
+    passport.serializeUser((user: Express.User, cb) => cb(null, user));
+    passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+    
+    // Mock login for local development
+    app.get("/api/login", (req, res) => {
+      const mockUser = {
+        claims: {
+          sub: "local-dev-user",
+          email: "dev@localhost",
+          first_name: "Dev",
+          last_name: "User",
+        },
+        expires_at: Math.floor(Date.now() / 1000) + 86400,
+      };
+      req.login(mockUser, (err) => {
+        if (err) {
+          return res.status(500).json({ error: "Login failed" });
+        }
+        res.redirect("/");
+      });
+    });
+    
+    app.get("/api/callback", (req, res) => {
+      res.redirect("/");
+    });
+    
+    app.get("/api/logout", (req, res) => {
+      req.logout(() => {
+        res.redirect("/");
+      });
+    });
+    
+    return;
+  }
+
   const config = await getOidcConfig();
 
   const verify: VerifyFunction = async (
@@ -88,7 +148,7 @@ export async function setupAuth(app: Express) {
       const strategy = new Strategy(
         {
           name: strategyName,
-          config,
+          config: config!,
           scope: "openid email profile offline_access",
           callbackURL: `https://${domain}/api/callback`,
         },
@@ -121,7 +181,7 @@ export async function setupAuth(app: Express) {
   app.get("/api/logout", (req, res) => {
     req.logout(() => {
       res.redirect(
-        client.buildEndSessionUrl(config, {
+        client.buildEndSessionUrl(config!, {
           client_id: process.env.REPL_ID!,
           post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
         }).href
@@ -150,6 +210,10 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   try {
     const config = await getOidcConfig();
+    if (!config) {
+      // Not in Replit environment, bypass token refresh
+      return next();
+    }
     const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
     updateUserSession(user, tokenResponse);
     return next();

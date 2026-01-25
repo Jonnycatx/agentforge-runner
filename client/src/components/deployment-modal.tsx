@@ -79,16 +79,31 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
     
     setIsAgentFileDownloading(true);
     
+    // Random avatar gradient colors for the runner
+    const AVATAR_GRADIENTS = [
+      'from-violet-500 to-purple-600',
+      'from-blue-500 to-cyan-500',
+      'from-emerald-500 to-teal-500',
+      'from-orange-500 to-amber-500',
+      'from-pink-500 to-rose-500',
+      'from-indigo-500 to-blue-500',
+    ];
+    
     try {
       const agentConfig = {
         name: currentAgent.name || "AI Assistant",
         goal: currentAgent.goal || "",
         personality: currentAgent.personality || currentAgent.systemPrompt || "You are a helpful AI assistant.",
-        avatar: "",
-        provider: "ollama",
+        avatar: "", // Custom avatar URL if provided
+        avatarColor: AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)],
+        provider: "ollama", // Default to free local Ollama
         model: "llama3.2",
         apiKey: "",
-        temperature: 0.7,
+        temperature: currentAgent.temperature || 0.7,
+        tools: currentAgent.tools || [],
+        version: "2.0",
+        generatedAt: new Date().toISOString(),
+        generatedBy: "AgentForge",
       };
 
       const jsonString = JSON.stringify(agentConfig, null, 2);

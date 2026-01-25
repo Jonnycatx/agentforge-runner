@@ -45,6 +45,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
   const [baseUrlInput, setBaseUrlInput] = useState("");
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionSuccess, setConnectionSuccess] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<"checking" | "available" | "unavailable">("checking");
   const [customModelId, setCustomModelId] = useState("");
   const [isCustomModel, setIsCustomModel] = useState(false);
@@ -91,6 +92,15 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
   const handleProviderSelect = (providerId: string) => {
     selectProvider(providerId);
     const provider = providers.find((p) => p.id === providerId);
+    
+    // Auto-open config dialog if provider is not connected
+    const isConnected = provider?.isConnected || (provider?.type === "ollama" && ollamaStatus === "available");
+    if (provider && !isConnected) {
+      // Open config dialog for unconnected providers
+      openConfigDialog(providerId);
+      return;
+    }
+    
     if (provider?.models && provider.models.length > 0) {
       selectModel(provider.models[0].id);
       onSelect?.(providerId, provider.models[0].id);
@@ -125,6 +135,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
       setApiKeyInput(provider.apiKey || "");
       setBaseUrlInput(provider.baseUrl || "");
       setConnectionError(null);
+      setConnectionSuccess(false);
       setConfigDialogOpen(true);
     }
   };
@@ -209,6 +220,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
 
     setIsTestingConnection(true);
     setConnectionError(null);
+    setConnectionSuccess(false);
 
     const result = await testConnection(provider, apiKeyInput, baseUrlInput);
 
@@ -228,12 +240,27 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
       }
 
       updateProvider(selectedConfigProvider, updates);
-      setConfigDialogOpen(false);
+      
+      // Show success state briefly before closing
+      setConnectionSuccess(true);
+      setIsTestingConnection(false);
+      
+      // Auto-select first model after successful connection
+      const updatedProvider = providers.find(p => p.id === selectedConfigProvider);
+      if (updatedProvider?.models && updatedProvider.models.length > 0) {
+        selectModel(updatedProvider.models[0].id);
+        onSelect?.(selectedConfigProvider, updatedProvider.models[0].id);
+      }
+      
+      // Close dialog after showing success
+      setTimeout(() => {
+        setConfigDialogOpen(false);
+        setConnectionSuccess(false);
+      }, 1500);
     } else {
       setConnectionError(result.error || "Connection failed");
+      setIsTestingConnection(false);
     }
-
-    setIsTestingConnection(false);
   };
 
   const getProviderBadge = (provider: typeof providers[0]) => {
@@ -390,6 +417,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
           setBaseUrlInput={setBaseUrlInput}
           isTestingConnection={isTestingConnection}
           connectionError={connectionError}
+          connectionSuccess={connectionSuccess}
           ollamaStatus={ollamaStatus}
           onSave={saveConfig}
           onRefreshOllama={checkOllamaStatus}
@@ -551,6 +579,7 @@ export function ModelSelector({ compact = false, onSelect }: ModelSelectorProps)
         setBaseUrlInput={setBaseUrlInput}
         isTestingConnection={isTestingConnection}
         connectionError={connectionError}
+        connectionSuccess={connectionSuccess}
         ollamaStatus={ollamaStatus}
         onSave={saveConfig}
         onRefreshOllama={checkOllamaStatus}
@@ -569,6 +598,7 @@ interface ConfigDialogProps {
   setBaseUrlInput: (value: string) => void;
   isTestingConnection: boolean;
   connectionError: string | null;
+  connectionSuccess: boolean;
   ollamaStatus: "checking" | "available" | "unavailable";
   onSave: () => void;
   onRefreshOllama: () => void;
@@ -584,6 +614,7 @@ function ConfigDialog({
   setBaseUrlInput,
   isTestingConnection,
   connectionError,
+  connectionSuccess,
   ollamaStatus,
   onSave,
   onRefreshOllama,
@@ -595,6 +626,29 @@ function ConfigDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent data-testid="dialog-config-model">
+        {/* Success overlay */}
+        <AnimatePresence>
+          {connectionSuccess && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 rounded-lg"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", damping: 15 }}
+                className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center mb-4"
+              >
+                <Check className="w-8 h-8 text-white" />
+              </motion.div>
+              <h3 className="text-xl font-semibold text-green-600 dark:text-green-400">Connected!</h3>
+              <p className="text-muted-foreground mt-1">{provider.name} is ready to use</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <DialogHeader>
           <DialogTitle>Configure {provider.name}</DialogTitle>
           <DialogDescription>
