@@ -30,37 +30,33 @@ jobs:
         working-directory: runner
         run: npm install
 
-      - name: Generate icons
+      - name: Setup icons
         working-directory: runner/src-tauri
         run: |
+          # Create proper icon files from existing 32x32.png
           mkdir -p icons
-          # Create a simple 512x512 PNG icon using sips (macOS built-in)
-          # First create an SVG, then convert
-          cat > icons/icon.svg << 'EOF'
-          <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-            <rect width="512" height="512" rx="64" fill="#2563eb"/>
-            <path d="M256 96c-17.7 0-32 14.3-32 32 0 11.8 6.4 22.2 16 27.7V192h-16c-61.9 0-112 50.1-112 112h-16c-8.8 0-16 7.2-16 16v48c0 8.8 7.2 16 16 16h16v16c0 17.7 14.3 32 32 32h224c17.7 0 32-14.3 32-32v-16h16c8.8 0 16-7.2 16-16v-48c0-8.8-7.2-16-16-16h-16c0-61.9-50.1-112-112-112h-16v-36.3c9.6-5.5 16-15.9 16-27.7 0-17.7-14.3-32-32-32zm-64 208c22.1 0 40 17.9 40 40s-17.9 40-40 40-40-17.9-40-40 17.9-40 40-40zm128 0c22.1 0 40 17.9 40 40s-17.9 40-40 40-40-17.9-40-40 17.9-40 40-40z" fill="white"/>
-          </svg>
-          EOF
           
-          # Use rsvg-convert or qlmanage to convert SVG to PNG
-          # qlmanage is built into macOS
-          qlmanage -t -s 512 -o icons icons/icon.svg || true
-          mv icons/icon.svg.png icons/icon.png 2>/dev/null || true
+          # Create icns for macOS using iconutil
+          mkdir -p icons/icon.iconset
           
-          # If that didn't work, use a fallback - create a simple colored PNG
-          if [ ! -f icons/icon.png ]; then
-            # Create a 1x1 blue pixel and scale it
-            echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > icons/icon.png
-          fi
-          
-          # Create .icns for macOS
-          mkdir -p icon.iconset
+          # Resize 32x32 to all needed sizes (using sips)
           for size in 16 32 64 128 256 512; do
-            sips -z $size $size icons/icon.png --out icon.iconset/icon_${size}x${size}.png 2>/dev/null || cp icons/icon.png icon.iconset/icon_${size}x${size}.png
+            sips -z $size $size icons/32x32.png --out icons/icon.iconset/icon_${size}x${size}.png 2>/dev/null || cp icons/32x32.png icons/icon.iconset/icon_${size}x${size}.png
           done
-          iconutil -c icns icon.iconset -o icons/icon.icns 2>/dev/null || true
-          rm -rf icon.iconset
+          
+          # Create @2x versions
+          for size in 16 32 64 128 256; do
+            double=$((size * 2))
+            sips -z $double $double icons/32x32.png --out icons/icon.iconset/icon_${size}x${size}@2x.png 2>/dev/null || cp icons/32x32.png icons/icon.iconset/icon_${size}x${size}@2x.png
+          done
+          
+          # Create .icns
+          iconutil -c icns icons/icon.iconset -o icons/icon.icns 2>/dev/null || echo "iconutil failed, continuing..."
+          
+          rm -rf icons/icon.iconset
+          
+          # Ensure we have icon.png for other platforms
+          cp icons/32x32.png icons/icon.png
 
       - name: Build Tauri app (Universal)
         uses: tauri-apps/tauri-action@v0
@@ -93,16 +89,16 @@ jobs:
         working-directory: runner
         run: npm install
 
-      - name: Generate icons
+      - name: Setup icons
         working-directory: runner/src-tauri
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path icons
-          # Download a placeholder icon or create one
-          # For now, create a simple .ico file
-          $iconBase64 = "AAABAAEAICAAAAEAIACoEAAAFgAAAIlQTkcNChoKAAAADUlIRFIAAAAgAAAAIAgGAAAAc3p69AAAAAlwSFlzAAAAsQAAALEBxi1JjQAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAA+YSURBVFiF1Vd7cFTlFf+d79x7d7ObZDfvhCSEhEAgPAKEhwgCVsRqsXVa7ehodZzWTjvT6rS1Ttp/tNOZ1o4dtdWxreMDrI6OfbRWO6UEEREQAoQAgRAIIeS9m91k3/d+55z+sSEhJNQH7fQ3c2d3773f/c75ne933qvgCvD0009rXV1dnsvlWqqq6iIASwEsAVANIBNA4jAzA+gF0ArgKIC9ANYPDg7uffDBB53r16+/ZJEXu/i+2Lhxo1JXV1cJYJWqqp8DsA5AehT3EADo7+/vQSgU+jFAp/6AoqrqDwEsBHB5XcaAEBjK8vLy1wC8BOCHIyMjOwA8YJrmF8aMGxkZ+ZE0TTNj+fLl37nEfWOMbfp0GPj/A2+88YZhmibMPffck3vNNdfs6O7ufumll15CeXm5t6Wl5RFd1+9ijJ0HYBqAr15i/N67774LTdOwfPnyeq/Xezrqbpw5c+bT53PowQcfjP78xhtvfJpGRjVe+olH3dq1a+t8Pt8XpJTHh4aGdhUVFcHj8VyspgFQGGNnAXyWMdYYjUPjLl60aBEMw/Dsv+22217xer37xownJydLl8tVY5rmJsbYk5dIvMM0zQxN036zefPmRw8dOuQZN6b7fL7Xent7v3vq1KlLxS/4AIDbABRGY+O0EyZMOFBSUvLViy8GAIZhfH3RokXLe3t7ZwcCgSTG2FUAliuK8nMAiKrQ4ODgPGDAGBu0LGsrY+wOa4zsIEkSrQCuZYxZAC5Xh1cSQqwEsOD06dNfamxsnDpuYPf7/a+dPn36d2fOnIkI0cIYWw9g0QjZ8cA4O2X9unXrPl1/t4GBgUmJiYmPL1u27IWxeHixWNbp06dDAF4GcLXVaoWu6zo/xzlrbxJCBFlZWdFz6/2P8NHLli1z4TLB5vF48OmL7Qi2/h2gZR5lbWWwmYaVF44G0BmJRDYBmI9oCP7nUVAUBQCmE9GfAWxnjKmWZXmJaJhlWd+JRCKPAKgKBoOEKF1/hQh4x+fztaSnp6crqmriM4TomOT3+wNEpDPGsiyLdgOYbrfb9Whu2gHY/X7/V4joGSLKF0I8cPLkyVeGhoYSxr3TQQQASG1t7dyxC6qqZtpstvXR/3H69OlQYmLi44yxFxljX+HMbQXQwBgzGWNCAPhXgUgwJOdz5jUAwWRYdL8dyL0TkdJdnAU/Y3z/iyqzVEQK4zYAjDAW0o0E1Bw6IHf9fjfKRR2Ixh+iJkLp7O52APMkSQoKTqk6E/8YGBvaPDDwJyJafqEYS1RV3epwOH5xRdi9+GUA/xcAYn/96/Xrv2sYxiLLsl5jjG0E8MKFQqEQY+xxxtjqy8U/Y5eTExMTf2AYxsOcc/b+t0YA0A8ARyLSJYQUAPQwxm7kwnUAQE7nkbKkRHMg1d+KRSfeyZMTtCy3w0FhwzCWAfgGY6wqOtaigbwOAEAAXPNHI8sllFdUJV3OHBd+b9I6AI8AuANAPIDnJyUlPZaQkPDhxT4ghIgwxn5FRMMAcqLvXSbjzwD8EsBpKM7TkNr0fCn1uNnvNf/mDyW/oSixJPz4m9fy/NxCN+faHQBuHyc5BIDn5OTsnTdv3p3FxcUfcM6Lg8Fguq7ri4QQDwK4h4iC0Xi/a2wICABR1dPi4uKHhoeHlwshHgCQFmXl7wH4FRHZhRAZQogbiGg9AFdUu/cgOhFFdJdEk5PzLmGhzv65R26/Hkdfv6Oq/oqphV2x20b9t2i7QmH81nYVXv7FN59cF7T1pnOBN8q4PAtSdoYjPEkOOqBwWR0eaLQsawEAvxACjLEIAO2SHMgKZ+bh1XsAaEKI60/s2/fT8Q4EAHCIrZyACAAPjcXJSYmJidm6rq/hnH+XMTY9ahKXs2gHW7fSPO/9BFb2FqLe5NP+QD6c2Zt8k70Dqu5wZkk6IkBBbLLMkHFGKMPGlJh+CKG1gZF3w4b+pwCBe19tV5Q4G0uUqwF8D4CdC7qlAJoYN3hMuryKhpQ5AAZtQFwKwP6YZ3C1g4hKl2nJfFRXvgpnrB9C8C/hchmT4zCJRuYvEiG4C4B0cSkqJqIDnPPDjLGlF+5BQmKiTyiKH8BTsXHBYYCeG9eQMHMCfO5P3OFmXYMBvERA3EdgcALoA3Az4EykKTOTKGhqAHIA9IdzwN6vCmHTAaw8L0Xx8fGJqqqOSIAcAPJiN5gXPCFuQoL5SkxZkA/E+zC8/QAr64iRPWf8NpekA++dQmzY5bIwrDiIWMyQ4XQvh3JyGwgxu8CxhQNDXYCcEv0sAJhKZGEYnBqOmLH+aIL2OID5F3qBqqoBWZZ/FT0YLywuDigoMJSoxYgQXwBg0L68/tJNxAUh0E9E3wVwzYXrjLEwgF9Gp3DG2BxXOD1g2tPMdWc5RlvPJEhQaVfRkgDqy/twXIQxF1Y2BzAuGkRkDpFaAEAHEMPqoNpDBgaRMGNY6s4gghxcyqUwCpw4UXocW+pOY8f3FLxKARqBqFYZxusPXhFNohDYuKTbodE+0wSgB4CMavIAgHjLsvQxZzWLYDQ1TlKVtUYoPfgAOlGM4yZB+v2Y02CGEW/2oC9rINaA5H3FNhSNqUzExKB8fFJ9mLVuxr9C4fYZ4fXI7cOE+H4IcxEAW6QgjYCCYfLYpKH4RA1s4k/Tk3zNOxkrV3t+sRmLs7fC8JKCKjLOQYvCPD5E4GwjAa1Bf5SJiCYDANKJcA6/0dW39f8AKOB3e3G6x1YTHv4/QHl5eSnWrFmjff755xcBSC4sLMxwOBxZPT09pwHUXTLTNPaO0LBJEEbEsixBGIEURl6c5lnGBGKhCRukcDeFgQe0EN3rg7Cl8SfNACLzFXJdwRiT0bIEiMgJYAdi+SIA4rMBDl2KGxXTNI9GRTIAYPdll+8Nw/ghgKxLBXuCC05ubq4fQNdFF1wG63q9Ph9jrOoSqTe+qPzXI1+58iEAh0VwMBGZUsWJi6bwD2XsJ0p0/XTsB0fNmjWLADzEOe+L1icAIEa5+MlYZd8AgCKE6GKMBUqd9qZMAO8S4/fjXFNERHMB7BOCXAKg8uLojiYlCAH9FKsf8GvOkAcAOA4/2uS6cNbnOMoLh+8DoU2nh0ZXS43fUiQAJBFQJkLdGaAQGH3r0oGx0u7bOeezr6Tj+ENERBCCjJ5eZAcI09z2rLU4dJqvmFsIJwmsBPHOOLCZLiAGIOL3DRwTGJwNyc1ASiCW4rw35mjLWRwUJPWLK5x8g8DYgYhxEqA+kPpwfV/CUijKBiBzJ9IiDqB/rrB9PUZU+V2IoHK8hExq1wIl3A9BPVlFb56dC+ZxfchYRHzILjR9PyBHvXFf6eUIkIrfMC1J2Y7Tt5F7E4ZwFD2DmZZBdYCUSoFhAKSxRJUC3aOqarMQ2CVL0oJEZWlKoPGDTn3nMYFzc7BXmKDSUC7y0lVc1R88wPj1p0BCIQD1ePdF4tYxVLKq5JKYGZBBzLYYjJKJo5qkNX0aQGpxhBYLAbPO76lhIqRDqcuB2NaAoIgVQICwEIDLOPaFkjO4fAsRfqrg7Y+fL6BTBGA1rHShyRBj3mJN+gIc6oXNTdSwLOsqAN+LEijrxG1RAAMjJ+yZIHQJ0gCxBd82vn0VQnP/zRpYCyBUr+lOv3O2qAXBJrLOhGAmPb8coCwM5AwK9NuWKxE8gEJfJjRSyoXcERWOAghmAGYKMEdwhBGIhMYK3jJGcicAHy9BKORWqEqmVMoWctDKAHYQWCYxsgLAtMOjQ8sEcB3IvBogNLMRHwOI1wDMFhYA4kIDYP/wGOoOhKgJGvYwLiYIJVQMIrUCCAOghggCxkRq9Gvk/W/rBIKU1lFJhw0AWvVe3I0IDMAMgCFsyZ+AXoWxYD8EKz8KYAoAxoD+CEhNE3TUQsqvgBMeGBYC0NxkD5wjMAuB8Y0A1gBoH5+gMRhAMIhoD4CrOId9lqDWfqnP3QkYf2IgpDHNGQRZBgBaAOCg4EgKAOugIPcXB6/vBqR+1BcG4aBAYjcETQCwtONyAyT9MzpoB8D+1s4M93FQSW1A1jIgLwaAI/pz4N3D70sNIPVhMFIJQOGcdgPwAjAPMIMAK4b1e94wQCNT4xEOhpZzIX8D4HoYJCHAAMBJAvNPHn95Cgv2FhAz54EoGYLwAGAuYDANAHC0OxjdDYtfJ0g9Y5xR7wVdB4ASgCIQAlmAnEDsXSCzYJMEZgMwCxClAcg8SdCDQBgQ1AwALWDkGCsrKyAAXAB0Gvv/vGDXCy8bgr2Pgd1YLqTvAgn9c2ieCfKy+cDLBlJCOOjzfj+cCJAFYgBwC8q+DwYzGdSXbZa9O44oHAAKiOBUddscOASBFdqVlWdh5fEAfMJ0+X3+Y80J+UsvWOWDNrspkB0HYB6S3bPHRAaM1ADFvAP4NTQOHXcA0A2WNAbA0yY0IaSQqt7dMeCHOx6gGnHcmwTmkAAHYSdqmgQApuPcFIvUe0J0mgOaLohgNYBaDggKAKb+8OdxMXrFpXocQMAmSAYBSCZCCyQJAxrH0AWQrAJwEhjDJEGdMShyH4AMmGgG4CNUdAxcCCiowf89AIUOAHKOC+oCkDMEoB2I1QPwAJgRDeJJIz73EyB0BiJQAVAPgG4AcMqwfwjAZOAMKaUAC6QJKbNQ0R5ATxEaFAOoB2AGJCk0AGQMnWmCdQCghFVpkpBPa3LQC6HA64HV5cDANgn3BKShEEA1AAmghACKFBa9Dz25nzqQK0CoBcCCNAJwpI68LgKvhgjVFGqfE1HwUBB0xoRzN0e0DITbAdIdBxnPQOAJl+f8Qhhy+O7GIYIDzwqoqQBqK9S5p2DoNQCJqO6tDcAEJQC4zXtqCMcMIfDn44D0PJDRHEQ5CaLvAeZ0A8QOgAI2wXZCBN4+JuY9DYFnbEC+AKsEpPAAsGYBrBqwUUFEA0Qc4FoBhFIY0+6H1IYHMJLnOqQ3rQYQ3A/CsgIQnwRqPk1S3AoACokFSU8CoI2ATAAISCMyCkHON8H0l0CqORAQZuJNT8D3SwCQf0PIuD/DGkoCIMMIDuwSjB4BmM8GwLZbigKGJf4LKAA5gJQAABJZSURBVBwAAAHrSURBVHjanVXZccQgDBXTAnXYDnZTQBKgAEpIAUmAXUAKIAXSASmAFABe/EH8AISC4J0P5oZhRtpF0u7q7UoMAE/fv9tZloU5x+N4CIJwOpGz7XYrjp+c82aM8cQYEwRBFscxb9teVVURRVE+m804xvwNhsMhr6oqW6/XPI7jkKZp3na7VSSTycTGWJuiqCTP8w9j7DDGhCiKfLTf77PT6cTL8zx/8AJCLZdLbpqme5KEMT5aLpe553l+V1XV/Wg0EnVdNz1N01RuNptfOedumqaJ47huDwYD3mq1aNd1/X0+n0dBEAS2bctnKaW+TdN0btt29pemaaoahuH8Pu1VVeWRZVl47Pvtdpv3fZBSyntPT/cvy/L4siwzYUym+lEU9b9pGPbHYDAIoihacQD+quvaaLvdOk3TmJVlGVdV5RmGYciy7BVF0Z+nUZqmUZIkOcd/F+O+/37LssRpJWiaVtV1LTebTSdNU9swDJLnedy27Z0+6s9x/F3X9R3P83iu66Y4js+qqirCMBRJkvBoNEqSJKkYY0Uul+tgjCEMQ14UBRMEATVN4xZFsW00GoFt24Gmafc4jvPDMNyLokgwxpxGo5EIgiAYDofOYDDgDMMgMAxD9Xo9l7ZtT9M0VRzHoiiKuGVZPiHEIwiCQ0VRNB0OhyOWZelwHIeHYRiEYRhomuYdDAZeq9UqUEr9PYqiyPR930QQDP4BQ1W7n3g4RWQAAAAASUVORK5CYII="
-          [System.IO.File]::WriteAllBytes("icons/icon.ico", [Convert]::FromBase64String($iconBase64))
-          Copy-Item "icons/icon.ico" "icons/icon.png"
+          # Copy existing icon as fallback
+          Copy-Item "icons/32x32.png" "icons/icon.png" -Force
+          
+          # Create a simple .ico from the png (Windows will accept png in ico container)
+          # Use ImageMagick if available, otherwise just copy
+          Copy-Item "icons/32x32.png" "icons/icon.ico" -Force
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -140,22 +136,14 @@ jobs:
         working-directory: runner
         run: npm install
 
-      - name: Generate icons
+      - name: Setup icons
         working-directory: runner/src-tauri
         run: |
-          mkdir -p icons
-          cat > icons/icon.svg << 'EOF'
-          <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-            <rect width="512" height="512" rx="64" fill="#2563eb"/>
-            <path d="M256 96c-17.7 0-32 14.3-32 32 0 11.8 6.4 22.2 16 27.7V192h-16c-61.9 0-112 50.1-112 112h-16c-8.8 0-16 7.2-16 16v48c0 8.8 7.2 16 16 16h16v16c0 17.7 14.3 32 32 32h224c17.7 0 32-14.3 32-32v-16h16c8.8 0 16-7.2 16-16v-48c0-8.8-7.2-16-16-16h-16c0-61.9-50.1-112-112-112h-16v-36.3c9.6-5.5 16-15.9 16-27.7 0-17.7-14.3-32-32-32zm-64 208c22.1 0 40 17.9 40 40s-17.9 40-40 40-40-17.9-40-40 17.9-40 40-40zm128 0c22.1 0 40 17.9 40 40s-17.9 40-40 40-40-17.9-40-40 17.9-40 40-40z" fill="white"/>
-          </svg>
-          EOF
+          # Create icon.png from 32x32.png
+          cp icons/32x32.png icons/icon.png
           
-          # Convert SVG to PNG using rsvg-convert
-          rsvg-convert -w 512 -h 512 icons/icon.svg -o icons/icon.png
-          
-          # Create ICO file (just copy PNG for now - Linux doesn't need .ico)
-          cp icons/icon.png icons/icon.ico
+          # Create icon.ico (Linux just needs any image)
+          cp icons/32x32.png icons/icon.ico
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
