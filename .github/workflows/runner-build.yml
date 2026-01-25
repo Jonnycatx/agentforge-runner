@@ -41,24 +41,41 @@ jobs:
         working-directory: runner
         run: npm run build
 
-      - name: Debug - List files
+      - name: Debug - Show structure
         run: |
-          echo "=== Runner directory ==="
-          ls -la runner/
-          echo "=== Dist directory ==="
-          ls -la runner/dist/ || echo "No dist yet"
-          echo "=== src-tauri directory ==="
-          ls -la runner/src-tauri/
+          echo "=== Runner dist ==="
+          ls -la runner/dist/ 2>/dev/null || echo "No dist"
+          echo "=== Tauri icons ==="
+          ls -la runner/src-tauri/icons/ 2>/dev/null || echo "No icons"
+          echo "=== Tauri config ==="
+          cat runner/src-tauri/tauri.conf.json
 
       - name: Build Tauri
         working-directory: runner
-        run: npx tauri build
+        run: npm run tauri build -- --verbose
         env:
           CI: true
 
-      - name: List artifacts
-        run: |
-          echo "=== Release directory ==="
-          ls -la runner/src-tauri/target/release/ || true
-          echo "=== Bundle directory ==="
-          find runner/src-tauri/target/release/bundle -type f 2>/dev/null || echo "No bundle found"
+      - name: Upload artifacts (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: runner/src-tauri/target/release/bundle/
+          if-no-files-found: warn
+
+      - name: Upload artifacts (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: runner/src-tauri/target/release/bundle/
+          if-no-files-found: warn
+
+      - name: Upload artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: runner/src-tauri/target/release/bundle/
+          if-no-files-found: warn
