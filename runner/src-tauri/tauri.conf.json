@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "",
+        "title": "AgentForge Runner",
         "label": "main",
         "width": 440,
         "height": 700,
@@ -21,11 +21,8 @@
         "maxWidth": 600,
         "resizable": true,
         "center": true,
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true,
         "decorations": true,
         "transparent": false,
-        "shadow": true,
         "focus": true
       }
     ],
