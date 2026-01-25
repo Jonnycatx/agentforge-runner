@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { 
-  Send, Settings, Bot, User, Loader2, AlertCircle, CheckCircle2,
-  Sparkles, Mic, Image, Paperclip, X, ChevronDown, MoreHorizontal
-} from 'lucide-react';
+import { Send, Settings, User, Loader2, Sparkles, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
 // Types
