@@ -4,26 +4,18 @@
   "version": "2.0.0",
   "identifier": "com.agentforge.runner",
   "build": {
-    "beforeBuildCommand": "npm run build",
-    "beforeDevCommand": "npm run dev",
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420"
   },
   "app": {
     "windows": [
       {
-        "title": "AgentForge Runner",
         "label": "main",
+        "title": "AgentForge Runner",
         "width": 440,
         "height": 700,
-        "minWidth": 380,
-        "minHeight": 500,
-        "maxWidth": 600,
         "resizable": true,
-        "center": true,
-        "decorations": true,
-        "transparent": false,
-        "focus": true
+        "center": true
       }
     ],
     "security": {
@@ -34,18 +26,7 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/icon.png",
-      "icons/icon.ico"
-    ],
-    "macOS": {
-      "minimumSystemVersion": "10.13"
-    },
-    "fileAssociations": [
-      {
-        "ext": ["agentforge"],
-        "name": "AgentForge Agent",
-        "role": "Editor"
-      }
+      "icons/32x32.png"
     ]
   },
   "plugins": {
