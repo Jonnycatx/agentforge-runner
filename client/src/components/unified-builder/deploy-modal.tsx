@@ -76,6 +76,7 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
   const [isLaunching, setIsLaunching] = useState(false);
   const [deployedUrl, setDeployedUrl] = useState<string | null>(null);
   const [detectedOS, setDetectedOS] = useState<OSType>("unknown");
+  const [selectedOS, setSelectedOS] = useState<OSType>("unknown");
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   
   // Export options
@@ -83,7 +84,9 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
   const [includeReadme, setIncludeReadme] = useState(true);
 
   useEffect(() => {
-    setDetectedOS(detectOS());
+    const os = detectOS();
+    setDetectedOS(os);
+    setSelectedOS(os);
   }, []);
 
   // Generate code based on format
@@ -158,7 +161,7 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
   };
 
   // One-click desktop launch
-  const handleLaunchDesktop = async () => {
+  const handleLaunchDesktop = async (includeRunnerDownload = false) => {
     setIsLaunching(true);
     
     const AVATAR_GRADIENTS = [
@@ -186,6 +189,11 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
         generatedAt: new Date().toISOString(),
         generatedBy: "AgentForge",
       };
+
+      if (includeRunnerDownload) {
+        window.open(getRunnerDownloadUrl(selectedOS), "_blank", "noopener,noreferrer");
+        setShowInstallHelp(true);
+      }
 
       // Try deep link
       const configBase64 = btoa(JSON.stringify(agentConfig));
@@ -236,8 +244,8 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
     }
   };
 
-  const getOSIcon = () => {
-    switch (detectedOS) {
+  const getOSIcon = (os: OSType) => {
+    switch (os) {
       case "mac": return <Apple className="w-4 h-4" />;
       case "windows": return <Monitor className="w-4 h-4" />;
       case "linux": return <Terminal className="w-4 h-4" />;
@@ -245,8 +253,8 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
     }
   };
 
-  const getOSDisplayName = () => {
-    switch (detectedOS) {
+  const getOSDisplayName = (os: OSType) => {
+    switch (os) {
       case "mac": return "Mac";
       case "windows": return "Windows";
       case "linux": return "Linux";
@@ -256,9 +264,9 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
 
   const GITHUB_REPO = "Jonnycatx/agentforge-runner";
   
-  const getRunnerDownloadUrl = () => {
+  const getRunnerDownloadUrl = (os: OSType = selectedOS) => {
     const baseUrl = `https://github.com/${GITHUB_REPO}/releases/latest/download`;
-    switch (detectedOS) {
+    switch (os) {
       case "mac": return `${baseUrl}/AgentForge-Runner_universal.dmg`;
       case "windows": return `${baseUrl}/AgentForge-Runner_x64-setup.exe`;
       case "linux": return `${baseUrl}/AgentForge-Runner_amd64.AppImage`;
@@ -312,34 +320,62 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
                 Launch {agent.name} as a beautiful native app. Always accessible from your dock or taskbar.
               </p>
               
-              <Button
-                onClick={handleLaunchDesktop}
-                disabled={isLaunching}
-                size="lg"
-                className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 shadow-lg shadow-violet-500/25 px-8"
-              >
-                {isLaunching ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    Launching...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-5 h-5 mr-2" />
-                    Launch Desktop App
-                  </>
-                )}
-              </Button>
+              <div className="flex flex-col items-center gap-3">
+                <Button
+                  onClick={() => handleLaunchDesktop(true)}
+                  disabled={isLaunching}
+                  size="lg"
+                  className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 shadow-lg shadow-violet-500/25 px-8 w-full sm:w-auto"
+                >
+                  {isLaunching ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                      Downloading & Opening...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5 mr-2" />
+                      Download & Open (Recommended)
+                    </>
+                  )}
+                </Button>
 
-              <div className="flex items-center justify-center gap-2 mt-4">
+                <Button
+                  onClick={() => handleLaunchDesktop(false)}
+                  disabled={isLaunching}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Already installed? Open now
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
                 <Badge variant="outline" className="text-xs">
-                  {getOSIcon()}
-                  <span className="ml-1">{getOSDisplayName()}</span>
+                  {getOSIcon(selectedOS)}
+                  <span className="ml-1">{getOSDisplayName(selectedOS)}</span>
                 </Badge>
                 <Badge variant="outline" className="text-xs text-green-600 border-green-500/30">
                   <Zap className="w-3 h-3 mr-1" />
                   Free AI with Ollama
                 </Badge>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+                {(["mac", "windows", "linux"] as OSType[]).map((os) => (
+                  <Button
+                    key={os}
+                    size="sm"
+                    variant={selectedOS === os ? "default" : "outline"}
+                    onClick={() => setSelectedOS(os)}
+                    className="h-8 px-3"
+                  >
+                    {getOSIcon(os)}
+                    <span className="ml-1">{getOSDisplayName(os)}</span>
+                  </Button>
+                ))}
               </div>
             </div>
 
@@ -359,19 +395,19 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
                   </div>
                   
                   <a 
-                    href={getRunnerDownloadUrl()}
+                    href={getRunnerDownloadUrl(selectedOS)}
                     target="_blank" 
                     rel="noopener noreferrer"
                   >
                     <Button variant="outline" className="w-full justify-start h-10">
                       <Download className="w-4 h-4 mr-2" />
-                      Download for {getOSDisplayName()}
+                      Download for {getOSDisplayName(selectedOS)}
                     </Button>
                   </a>
                   
                   <p className="text-xs text-muted-foreground">
-                    {detectedOS === "mac" ? "Open .dmg → Drag to Applications → Double-click to run" : 
-                     detectedOS === "windows" ? "Run the installer → Launch from Start Menu" :
+                    {selectedOS === "mac" ? "Open .dmg → Drag to Applications → Double-click to run" : 
+                     selectedOS === "windows" ? "Run the installer → Launch from Start Menu" :
                      "Make executable (chmod +x) → Double-click to run"}
                   </p>
                 </div>
