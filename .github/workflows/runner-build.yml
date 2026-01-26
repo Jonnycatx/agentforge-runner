@@ -52,7 +52,7 @@ jobs:
 
       - name: Build Tauri
         working-directory: runner
-        run: npm run tauri build -- --verbose
+        run: npm run tauri:build
         env:
           CI: true
 
