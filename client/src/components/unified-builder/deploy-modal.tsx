@@ -180,8 +180,8 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
         personality: agent.personality || agent.systemPrompt || "You are a helpful AI assistant.",
         avatar: "",
         avatarColor: AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)],
-        provider: "ollama",
-        model: "llama3.2",
+        provider: agent.providerId || "ollama",
+        model: agent.modelId || "llama3.2",
         apiKey: "",
         temperature: agent.temperature || 0.7,
         tools: agent.tools || [],
@@ -411,9 +411,11 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
                   </a>
                   
                   <p className="text-xs text-muted-foreground">
-                    {selectedOS === "mac" ? "Open .dmg → Drag to Applications → Double-click to run" : 
-                     selectedOS === "windows" ? "Run the installer → Launch from Start Menu" :
-                     "Make executable (chmod +x) → Double-click to run"}
+                    {selectedOS === "mac"
+                      ? "Open .dmg → Drag to Applications → Double-click to run. macOS may ask for your password on install."
+                      : selectedOS === "windows"
+                        ? "Run the installer → Launch from Start Menu"
+                        : "Make executable (chmod +x) → Double-click to run"}
                   </p>
                 </div>
               </CollapsibleContent>

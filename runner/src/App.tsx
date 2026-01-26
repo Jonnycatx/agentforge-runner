@@ -39,6 +39,11 @@ const DEFAULT_CONFIG: AgentConfig = {
 };
 
 const BACKEND_URL = 'http://127.0.0.1:8765';
+const SETTINGS_STORAGE_KEY = 'agentforge:settings';
+
+type StoredSettings = Pick<AgentConfig, 'provider' | 'model' | 'temperature'> & {
+  apiKey?: string;
+};
 
 // Avatar gradient presets
 const AVATAR_GRADIENTS = [
@@ -62,6 +67,49 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const readStoredSettings = (): StoredSettings => {
+    try {
+      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as StoredSettings;
+      return {
+        provider: typeof parsed.provider === 'string' ? parsed.provider : undefined,
+        model: typeof parsed.model === 'string' ? parsed.model : undefined,
+        temperature: typeof parsed.temperature === 'number' ? parsed.temperature : undefined,
+        apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : undefined,
+      };
+    } catch {
+      return {};
+    }
+  };
+
+  const writeStoredSettings = (settings: StoredSettings) => {
+    try {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    } catch {
+      // Ignore storage errors (e.g., private mode)
+    }
+  };
+
+  const mergeConfigWithSettings = (incoming: Partial<AgentConfig>): AgentConfig => {
+    const stored = readStoredSettings();
+    const merged: AgentConfig = {
+      ...DEFAULT_CONFIG,
+      ...incoming,
+      provider: incoming.provider ?? stored.provider ?? DEFAULT_CONFIG.provider,
+      model: incoming.model ?? stored.model ?? DEFAULT_CONFIG.model,
+      temperature: incoming.temperature ?? stored.temperature ?? DEFAULT_CONFIG.temperature,
+      apiKey: incoming.apiKey ?? stored.apiKey ?? '',
+      tools: incoming.tools ?? DEFAULT_CONFIG.tools,
+    };
+
+    if (!merged.avatarColor) {
+      merged.avatarColor = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
+    }
+
+    return merged;
+  };
 
   useEffect(() => {
     checkBackend();
@@ -94,11 +142,9 @@ export default function App() {
       const response = await fetch(`${BACKEND_URL}/config`);
       if (response.ok) {
         const data = await response.json();
-        const loadedConfig = { ...DEFAULT_CONFIG, ...data };
-        if (!loadedConfig.avatarColor) {
-          loadedConfig.avatarColor = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
-        }
+        const loadedConfig = mergeConfigWithSettings(data);
         setConfig(loadedConfig);
+        setApiKey(loadedConfig.apiKey || '');
         // Add welcome message
         if (data.name) {
           setMessages([{
@@ -119,12 +165,7 @@ export default function App() {
 
     try {
       const parsedConfig = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : rawConfig;
-      const loadedConfig = { ...DEFAULT_CONFIG, ...(parsedConfig as Partial<AgentConfig>) };
-
-      if (!loadedConfig.avatarColor) {
-        loadedConfig.avatarColor = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
-      }
-
+      const loadedConfig = mergeConfigWithSettings(parsedConfig as Partial<AgentConfig>);
       setConfig(loadedConfig);
       setApiKey(loadedConfig.apiKey || '');
       setMessages([{
@@ -257,11 +298,19 @@ export default function App() {
 
   const saveSettings = async () => {
     try {
+      const updatedConfig = { ...config, apiKey };
+      writeStoredSettings({
+        provider: updatedConfig.provider,
+        model: updatedConfig.model,
+        temperature: updatedConfig.temperature,
+        apiKey,
+      });
       await fetch(`${BACKEND_URL}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...config, apiKey }),
+        body: JSON.stringify(updatedConfig),
       });
+      setConfig(updatedConfig);
       setShowSettings(false);
       checkBackend();
     } catch {
