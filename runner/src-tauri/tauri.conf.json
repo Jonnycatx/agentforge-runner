@@ -32,6 +32,14 @@
       "icons/128x128@2x.png",
       "icons/icon.ico",
       "icons/icon.icns"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["agentforge"],
+        "name": "AgentForge Agent",
+        "role": "Editor",
+        "mimeType": "application/vnd.agentforge.agent"
+      }
     ]
   },
   "plugins": {

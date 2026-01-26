@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { listen } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { Send, Settings, User, Loader2, Sparkles, X, Zap, Volume2, VolumeX } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -110,6 +112,67 @@ export default function App() {
       console.log('Using default config');
     }
   };
+
+  const applyAgentConfig = (rawConfig: unknown) => {
+    if (!rawConfig) return;
+
+    try {
+      const parsedConfig = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : rawConfig;
+      const loadedConfig = { ...DEFAULT_CONFIG, ...(parsedConfig as Partial<AgentConfig>) };
+
+      if (!loadedConfig.avatarColor) {
+        loadedConfig.avatarColor = AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)];
+      }
+
+      setConfig(loadedConfig);
+      setApiKey(loadedConfig.apiKey || '');
+      setMessages([{
+        id: '1',
+        role: 'assistant',
+        content: `Hi! I'm ${loadedConfig.name}. ${loadedConfig.goal ? loadedConfig.goal : 'How can I help you today?'}`,
+        timestamp: new Date(),
+      }]);
+    } catch (error) {
+      console.error('Failed to apply agent config', error);
+    }
+  };
+
+  const handleDeepLink = (url: string) => {
+    try {
+      const parsedUrl = new URL(url);
+      if (parsedUrl.protocol !== 'agentforge:') return;
+
+      const encodedConfig = parsedUrl.searchParams.get('config');
+      if (!encodedConfig) return;
+
+      const decoded = atob(decodeURIComponent(encodedConfig));
+      applyAgentConfig(decoded);
+    } catch (error) {
+      console.error('Failed to parse deep link', error);
+    }
+  };
+
+  useEffect(() => {
+    let unlistenConfig: UnlistenFn | undefined;
+    let unlistenDeepLink: UnlistenFn | undefined;
+
+    (async () => {
+      unlistenConfig = await listen<string>('agentforge://config', (event) => {
+        applyAgentConfig(event.payload);
+      });
+
+      unlistenDeepLink = await listen<string>('agentforge://deeplink', (event) => {
+        if (event.payload) {
+          handleDeepLink(event.payload);
+        }
+      });
+    })();
+
+    return () => {
+      unlistenConfig?.();
+      unlistenDeepLink?.();
+    };
+  }, []);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
