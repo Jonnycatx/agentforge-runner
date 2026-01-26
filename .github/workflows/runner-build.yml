@@ -41,15 +41,6 @@ jobs:
         working-directory: runner
         run: npm run build
 
-      - name: Debug - Show structure
-        run: |
-          echo "=== Runner dist ==="
-          ls -la runner/dist/ 2>/dev/null || echo "No dist"
-          echo "=== Tauri icons ==="
-          ls -la runner/src-tauri/icons/ 2>/dev/null || echo "No icons"
-          echo "=== Tauri config ==="
-          cat runner/src-tauri/tauri.conf.json
-
       - name: Build Tauri
         working-directory: runner
         run: npm run tauri:build
