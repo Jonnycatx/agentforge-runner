@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import { Send, Settings, User, Loader2, Sparkles, X, Zap, Volume2, VolumeX } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -155,22 +156,41 @@ export default function App() {
   useEffect(() => {
     let unlistenConfig: UnlistenFn | undefined;
     let unlistenDeepLink: UnlistenFn | undefined;
+    let unlistenOpenUrl: UnlistenFn | undefined;
 
     (async () => {
       unlistenConfig = await listen<string>('agentforge://config', (event) => {
         applyAgentConfig(event.payload);
       });
 
+      // Legacy deep-link event (Rust emitter)
       unlistenDeepLink = await listen<string>('agentforge://deeplink', (event) => {
         if (event.payload) {
           handleDeepLink(event.payload);
         }
       });
+
+      // Deep-link plugin events (agentforge://)
+      try {
+        const currentUrls = await getCurrent();
+        currentUrls?.forEach((url) => handleDeepLink(url));
+      } catch (error) {
+        console.error('Failed to read current deep link', error);
+      }
+
+      try {
+        unlistenOpenUrl = await onOpenUrl((urls) => {
+          urls.forEach((url) => handleDeepLink(url));
+        });
+      } catch (error) {
+        console.error('Failed to listen for deep links', error);
+      }
     })();
 
     return () => {
       unlistenConfig?.();
       unlistenDeepLink?.();
+      unlistenOpenUrl?.();
     };
   }, []);
 
