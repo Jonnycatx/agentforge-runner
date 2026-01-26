@@ -10,6 +10,11 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useAgentStore } from "@/lib/agent-store";
 import { generateExportPackage } from "@/lib/export-utils";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +29,9 @@ import {
   Monitor,
   Apple,
   CheckCircle2,
+  ChevronDown,
+  Play,
+  Zap,
 } from "lucide-react";
 
 interface DeploymentModalProps {
@@ -45,8 +53,9 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
   const { builderState } = useAgentStore();
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isAgentFileDownloading, setIsAgentFileDownloading] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
   const [detectedOS, setDetectedOS] = useState<OSType>("unknown");
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
   const currentAgent = builderState.currentAgent;
 
   useEffect(() => {
@@ -74,12 +83,12 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
     }
   };
 
-  const handleAgentFileDownload = () => {
+  // One-click launch: Download agent file and try to open with custom protocol
+  const handleLaunchDesktop = async () => {
     if (!currentAgent) return;
     
-    setIsAgentFileDownloading(true);
+    setIsLaunching(true);
     
-    // Random avatar gradient colors for the runner
     const AVATAR_GRADIENTS = [
       'from-violet-500 to-purple-600',
       'from-blue-500 to-cyan-500',
@@ -94,9 +103,9 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
         name: currentAgent.name || "AI Assistant",
         goal: currentAgent.goal || "",
         personality: currentAgent.personality || currentAgent.systemPrompt || "You are a helpful AI assistant.",
-        avatar: "", // Custom avatar URL if provided
+        avatar: "",
         avatarColor: AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)],
-        provider: "ollama", // Default to free local Ollama
+        provider: "ollama",
         model: "llama3.2",
         apiKey: "",
         temperature: currentAgent.temperature || 0.7,
@@ -106,35 +115,54 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
         generatedBy: "AgentForge",
       };
 
-      const jsonString = JSON.stringify(agentConfig, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
+      // Try to open via custom URL scheme first
+      const configBase64 = btoa(JSON.stringify(agentConfig));
+      const deepLinkUrl = `agentforge://launch?config=${encodeURIComponent(configBase64)}`;
       
-      const a = document.createElement("a");
-      const safeName = (currentAgent.name || "MyAgent").replace(/[^a-zA-Z0-9]/g, "") || "MyAgent";
-      a.href = url;
-      a.download = `${safeName}.agentforge`;
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
+      // Try to open the deep link
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = deepLinkUrl;
+      document.body.appendChild(iframe);
       
+      // Give it a moment, then clean up and download file as backup
       setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
-
-      toast({
-        title: "Agent file downloaded!",
-        description: "Double-click to open in AgentForge Runner",
-      });
+        document.body.removeChild(iframe);
+        
+        // Also download the agent file as backup
+        const jsonString = JSON.stringify(agentConfig, null, 2);
+        const blob = new Blob([jsonString], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement("a");
+        const safeName = (currentAgent.name || "MyAgent").replace(/[^a-zA-Z0-9]/g, "") || "MyAgent";
+        a.href = url;
+        a.download = `${safeName}.agentforge`;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+        
+        toast({
+          title: "Agent file downloaded!",
+          description: "Double-click the file to launch in AgentForge Runner",
+        });
+        
+        setIsLaunching(false);
+      }, 500);
+      
     } catch (error) {
       toast({
-        title: "Download failed",
-        description: "There was an error creating the agent file",
+        title: "Launch failed",
+        description: "Please download and install AgentForge Runner first",
         variant: "destructive",
       });
-    } finally {
-      setIsAgentFileDownloading(false);
+      setShowInstallHelp(true);
+      setIsLaunching(false);
     }
   };
 
@@ -142,15 +170,6 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
     const agentId = currentAgent?.id || "default";
     window.open(`/run-agent/${agentId}`, "_blank");
     onOpenChange(false);
-  };
-
-  const getRunScriptName = () => {
-    switch (detectedOS) {
-      case "mac": return "run_mac.command";
-      case "linux": return "run_linux.sh";
-      case "windows": return "run_windows.bat";
-      default: return "run_mac.command or run_windows.bat";
-    }
   };
 
   const getOSIcon = () => {
@@ -171,7 +190,6 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
     }
   };
 
-  // Central Runner repo - all users download from here
   const GITHUB_REPO = "Jonnycatx/agentforge-runner";
   
   const getRunnerDownloadUrl = () => {
@@ -235,98 +253,92 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
               </CardContent>
             </Card>
 
-            {/* Option 2 - Native Desktop App */}
-            <Card className="border-muted">
+            {/* Option 2 - Native Desktop App - ONE-CLICK LAUNCH */}
+            <Card className="border-violet-500/30 bg-gradient-to-br from-violet-500/5 to-purple-500/5">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-violet-500/20">
                     <Monitor className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-lg">Native Desktop App</h3>
-                      <Badge variant="outline" className="text-xs">
+                      <h3 className="font-semibold text-lg">Desktop Companion</h3>
+                      <Badge variant="outline" className="text-xs border-violet-500/30 text-violet-600 dark:text-violet-400">
                         {getOSIcon()}
                         <span className="ml-1">{getOSDisplayName()}</span>
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Double-click to run - beautiful native experience
+                      Native app with AI avatar - always accessible
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                  <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    Two Easy Steps
-                  </h4>
-                  
-                  <div className="space-y-3 text-sm">
-                    {/* Step 1 - Download Runner */}
-                    <div className="flex items-start gap-3" data-testid="native-step-1">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs font-bold text-primary">1</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">Get AgentForge Runner (one time)</p>
+                {/* Primary Launch Button */}
+                <Button
+                  onClick={handleLaunchDesktop}
+                  disabled={isLaunching}
+                  className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 shadow-lg shadow-violet-500/20"
+                  size="lg"
+                  data-testid="button-launch-desktop"
+                >
+                  {isLaunching ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                      Launching...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5 mr-2" />
+                      Launch Desktop App
+                    </>
+                  )}
+                </Button>
+
+                {/* Collapsible Install Help */}
+                <Collapsible open={showInstallHelp} onOpenChange={setShowInstallHelp}>
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-2">
+                      <span>First time? Get the app</span>
+                      <ChevronDown className={`w-3 h-3 transition-transform ${showInstallHelp ? 'rotate-180' : ''}`} />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-3 mt-2">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-violet-500" />
+                        Quick Setup (one time)
+                      </h4>
+                      
+                      <div className="space-y-2 text-sm">
                         <a 
                           href={getRunnerDownloadUrl()}
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 mt-1"
+                          className="block"
                           data-testid="link-runner-download"
                         >
-                          <Button variant="outline" size="sm" className="h-8">
-                            {getOSIcon()}
-                            <span className="ml-1">Download for {getOSDisplayName()}</span>
-                            <Download className="w-3 h-3 ml-1" />
+                          <Button variant="outline" size="sm" className="w-full justify-start h-10">
+                            <Download className="w-4 h-4 mr-2" />
+                            Download AgentForge Runner for {getOSDisplayName()}
                           </Button>
                         </a>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {detectedOS === "mac" ? "Open the .dmg and drag to Applications" : 
-                           detectedOS === "windows" ? "Run the installer with default settings" :
-                           "Make it executable and run"}
+                        <p className="text-xs text-muted-foreground px-1">
+                          {detectedOS === "mac" ? "Open the .dmg → Drag to Applications → Double-click to run" : 
+                           detectedOS === "windows" ? "Run the installer → Launch from Start Menu" :
+                           "Make executable (chmod +x) → Double-click to run"}
                         </p>
                       </div>
-                    </div>
 
-                    {/* Step 2 - Download Agent File */}
-                    <div className="flex items-start gap-3" data-testid="native-step-2">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-xs font-bold text-primary">2</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">Download your agent file</p>
-                        <Button
-                          onClick={handleAgentFileDownload}
-                          disabled={isAgentFileDownloading}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 mt-1"
-                          data-testid="button-download-agentforge"
-                        >
-                          {isAgentFileDownloading ? (
-                            <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                          ) : (
-                            <Download className="w-3 h-3 mr-1" />
-                          )}
-                          Download {currentAgent.name}.agentforge
-                        </Button>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Double-click to open in AgentForge Runner
-                        </p>
+                      <div className="flex items-start gap-2 pt-2 border-t border-muted text-xs text-muted-foreground">
+                        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>
+                          <span className="font-medium">Free AI included:</span> Works with Ollama for unlimited local inference
+                        </span>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-start gap-2 pt-2 border-t border-muted text-xs text-muted-foreground">
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>
-                      <span className="font-medium">Free AI included:</span> Works with Ollama for unlimited local inference, or connect OpenAI/Anthropic API keys
-                    </span>
-                  </div>
-                </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </CardContent>
             </Card>
 
