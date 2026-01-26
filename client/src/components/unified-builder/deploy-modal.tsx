@@ -2,7 +2,7 @@
  * Deploy Modal - Export and deploy agent in multiple formats
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -27,14 +32,20 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Code,
   FileJson,
   FileCode,
   Loader2,
   CheckCircle2,
+  Globe,
+  Play,
+  Sparkles,
+  ChevronDown,
+  Apple,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 import type { BuilderAgent } from "@/pages/unified-builder";
 import type { ToolDefinition } from "@shared/schema";
 
@@ -46,17 +57,34 @@ interface DeployModalProps {
 }
 
 type ExportFormat = "python" | "javascript" | "json" | "docker";
+type OSType = "mac" | "windows" | "linux" | "unknown";
+
+function detectOS(): OSType {
+  const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes("mac")) return "mac";
+  if (userAgent.includes("win")) return "windows";
+  if (userAgent.includes("linux")) return "linux";
+  return "unknown";
+}
 
 export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalProps) {
-  const [activeTab, setActiveTab] = useState("download");
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("desktop");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("python");
   const [copied, setCopied] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
   const [deployedUrl, setDeployedUrl] = useState<string | null>(null);
+  const [detectedOS, setDetectedOS] = useState<OSType>("unknown");
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
   
   // Export options
   const [includeEnvTemplate, setIncludeEnvTemplate] = useState(true);
   const [includeReadme, setIncludeReadme] = useState(true);
+
+  useEffect(() => {
+    setDetectedOS(detectOS());
+  }, []);
 
   // Generate code based on format
   const generateCode = (format: ExportFormat): string => {
@@ -111,35 +139,131 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
 
   // Download full package
   const handleDownloadPackage = () => {
-    // Create a zip-like structure (in real implementation, would use JSZip)
-    const files: Record<string, string> = {
-      [`${agent.name.toLowerCase().replace(/\s+/g, "_")}_agent.py`]: generateCode("python"),
-      "config.json": generateCode("json"),
-    };
-    
-    if (includeEnvTemplate) {
-      files[".env.example"] = generateEnvTemplate(agent);
-    }
-    
-    if (includeReadme) {
-      files["README.md"] = generateReadme(agent);
-    }
-
-    // For now, download the main file
     handleDownload();
   };
 
   // Simulate API deployment
   const handleDeployAPI = async () => {
     setIsDeploying(true);
-    
-    // Simulate deployment
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Generate a fake URL (in real implementation, would call backend)
     const agentSlug = agent.name.toLowerCase().replace(/\s+/g, "-");
     setDeployedUrl(`https://api.agentforge.app/v1/agents/${agentSlug}`);
     setIsDeploying(false);
+  };
+
+  // Open in browser
+  const handleRunInBrowser = () => {
+    window.open(`/run-agent/${agent.id || "preview"}`, "_blank");
+    onOpenChange(false);
+  };
+
+  // One-click desktop launch
+  const handleLaunchDesktop = async () => {
+    setIsLaunching(true);
+    
+    const AVATAR_GRADIENTS = [
+      'from-violet-500 to-purple-600',
+      'from-blue-500 to-cyan-500',
+      'from-emerald-500 to-teal-500',
+      'from-orange-500 to-amber-500',
+      'from-pink-500 to-rose-500',
+      'from-indigo-500 to-blue-500',
+    ];
+    
+    try {
+      const agentConfig = {
+        name: agent.name || "AI Assistant",
+        goal: agent.goal || "",
+        personality: agent.personality || agent.systemPrompt || "You are a helpful AI assistant.",
+        avatar: "",
+        avatarColor: AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)],
+        provider: "ollama",
+        model: "llama3.2",
+        apiKey: "",
+        temperature: agent.temperature || 0.7,
+        tools: agent.tools || [],
+        version: "2.0",
+        generatedAt: new Date().toISOString(),
+        generatedBy: "AgentForge",
+      };
+
+      // Try deep link
+      const configBase64 = btoa(JSON.stringify(agentConfig));
+      const deepLinkUrl = `agentforge://launch?config=${encodeURIComponent(configBase64)}`;
+      
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = deepLinkUrl;
+      document.body.appendChild(iframe);
+      
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        
+        // Download agent file as backup
+        const jsonString = JSON.stringify(agentConfig, null, 2);
+        const blob = new Blob([jsonString], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement("a");
+        const safeName = (agent.name || "MyAgent").replace(/[^a-zA-Z0-9]/g, "") || "MyAgent";
+        a.href = url;
+        a.download = `${safeName}.agentforge`;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+        
+        toast({
+          title: "Agent file downloaded!",
+          description: "Double-click the file to launch in AgentForge Runner",
+        });
+        
+        setIsLaunching(false);
+      }, 500);
+      
+    } catch (error) {
+      toast({
+        title: "Launch failed",
+        description: "Please download and install AgentForge Runner first",
+        variant: "destructive",
+      });
+      setShowInstallHelp(true);
+      setIsLaunching(false);
+    }
+  };
+
+  const getOSIcon = () => {
+    switch (detectedOS) {
+      case "mac": return <Apple className="w-4 h-4" />;
+      case "windows": return <Monitor className="w-4 h-4" />;
+      case "linux": return <Terminal className="w-4 h-4" />;
+      default: return <Monitor className="w-4 h-4" />;
+    }
+  };
+
+  const getOSDisplayName = () => {
+    switch (detectedOS) {
+      case "mac": return "Mac";
+      case "windows": return "Windows";
+      case "linux": return "Linux";
+      default: return "Desktop";
+    }
+  };
+
+  const GITHUB_REPO = "Jonnycatx/agentforge-runner";
+  
+  const getRunnerDownloadUrl = () => {
+    const baseUrl = `https://github.com/${GITHUB_REPO}/releases/latest/download`;
+    switch (detectedOS) {
+      case "mac": return `${baseUrl}/AgentForge-Runner_universal.dmg`;
+      case "windows": return `${baseUrl}/AgentForge-Runner_x64-setup.exe`;
+      case "linux": return `${baseUrl}/AgentForge-Runner_amd64.AppImage`;
+      default: return `https://github.com/${GITHUB_REPO}/releases`;
+    }
   };
 
   const code = generateCode(exportFormat);
@@ -153,104 +277,147 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
             Deploy {agent.name}
           </DialogTitle>
           <DialogDescription>
-            Export your agent code or deploy it as an API
+            Launch your AI assistant or export for development
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="download" className="gap-1.5">
-              <Download className="w-4 h-4" />
-              Download
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="desktop" className="gap-1.5">
+              <Monitor className="w-4 h-4" />
+              Desktop
+            </TabsTrigger>
+            <TabsTrigger value="browser" className="gap-1.5">
+              <Globe className="w-4 h-4" />
+              Browser
             </TabsTrigger>
             <TabsTrigger value="api" className="gap-1.5">
               <Cloud className="w-4 h-4" />
               API
             </TabsTrigger>
-            <TabsTrigger value="desktop" className="gap-1.5">
-              <Monitor className="w-4 h-4" />
-              Desktop
+            <TabsTrigger value="code" className="gap-1.5">
+              <Terminal className="w-4 h-4" />
+              Code
             </TabsTrigger>
           </TabsList>
 
-          {/* Download Tab */}
-          <TabsContent value="download" className="mt-4 space-y-4">
-            {/* Format Selection */}
-            <div className="flex gap-2">
+          {/* Desktop Tab - Primary Option */}
+          <TabsContent value="desktop" className="mt-4 space-y-4">
+            <div className="text-center p-6 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                <Monitor className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Desktop Companion</h3>
+              <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+                Launch {agent.name} as a beautiful native app. Always accessible from your dock or taskbar.
+              </p>
+              
+              <Button
+                onClick={handleLaunchDesktop}
+                disabled={isLaunching}
+                size="lg"
+                className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 shadow-lg shadow-violet-500/25 px-8"
+              >
+                {isLaunching ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Launching...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5 mr-2" />
+                    Launch Desktop App
+                  </>
+                )}
+              </Button>
+
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Badge variant="outline" className="text-xs">
+                  {getOSIcon()}
+                  <span className="ml-1">{getOSDisplayName()}</span>
+                </Badge>
+                <Badge variant="outline" className="text-xs text-green-600 border-green-500/30">
+                  <Zap className="w-3 h-3 mr-1" />
+                  Free AI with Ollama
+                </Badge>
+              </div>
+            </div>
+
+            {/* Install Help */}
+            <Collapsible open={showInstallHelp} onOpenChange={setShowInstallHelp}>
+              <CollapsibleTrigger asChild>
+                <button className="w-full flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-2">
+                  <span>First time? Get AgentForge Runner</span>
+                  <ChevronDown className={cn("w-3 h-3 transition-transform", showInstallHelp && "rotate-180")} />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Sparkles className="w-4 h-4 text-violet-500" />
+                    Quick Setup (one time only)
+                  </div>
+                  
+                  <a 
+                    href={getRunnerDownloadUrl()}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="outline" className="w-full justify-start h-10">
+                      <Download className="w-4 h-4 mr-2" />
+                      Download for {getOSDisplayName()}
+                    </Button>
+                  </a>
+                  
+                  <p className="text-xs text-muted-foreground">
+                    {detectedOS === "mac" ? "Open .dmg → Drag to Applications → Double-click to run" : 
+                     detectedOS === "windows" ? "Run the installer → Launch from Start Menu" :
+                     "Make executable (chmod +x) → Double-click to run"}
+                  </p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Features */}
+            <div className="grid grid-cols-2 gap-3 pt-2">
               {[
-                { id: "python", label: "Python", icon: Terminal },
-                { id: "javascript", label: "JavaScript", icon: FileCode },
-                { id: "json", label: "JSON Config", icon: FileJson },
-                { id: "docker", label: "Docker", icon: Package },
-              ].map(({ id, label, icon: Icon }) => (
-                <Button
-                  key={id}
-                  variant={exportFormat === id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setExportFormat(id as ExportFormat)}
-                  className="flex-1"
-                >
-                  <Icon className="w-4 h-4 mr-1" />
-                  {label}
-                </Button>
+                { icon: CheckCircle2, text: "Works offline with local AI" },
+                { icon: CheckCircle2, text: "Beautiful native interface" },
+                { icon: CheckCircle2, text: "Your data stays private" },
+                { icon: CheckCircle2, text: "Always accessible" },
+              ].map(({ icon: Icon, text }, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Icon className="w-3.5 h-3.5 text-green-500" />
+                  {text}
+                </div>
               ))}
             </div>
+          </TabsContent>
 
-            {/* Code Preview */}
-            <div className="relative">
-              <div className="flex items-center justify-between p-2 border rounded-t-lg bg-muted">
-                <Badge variant="secondary" className="text-xs">
-                  {exportFormat === "docker" ? "Dockerfile" : `.${exportFormat}`}
-                </Badge>
-                <Button variant="ghost" size="sm" onClick={handleCopy}>
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 mr-1" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 mr-1" />
-                      Copy
-                    </>
-                  )}
-                </Button>
+          {/* Browser Tab */}
+          <TabsContent value="browser" className="mt-4 space-y-4">
+            <div className="text-center p-6 rounded-xl border bg-muted/30">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Globe className="w-8 h-8 text-primary" />
               </div>
-              <ScrollArea className="h-[250px] border border-t-0 rounded-b-lg">
-                <pre className="p-4 text-xs font-mono leading-relaxed">
-                  <code>{code}</code>
-                </pre>
-              </ScrollArea>
-            </div>
-
-            {/* Options */}
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={includeEnvTemplate}
-                    onCheckedChange={setIncludeEnvTemplate}
-                    id="env"
-                  />
-                  <Label htmlFor="env" className="text-sm">
-                    Include .env template
-                  </Label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={includeReadme}
-                    onCheckedChange={setIncludeReadme}
-                    id="readme"
-                  />
-                  <Label htmlFor="readme" className="text-sm">
-                    Include README
-                  </Label>
-                </div>
-              </div>
-              <Button onClick={handleDownloadPackage}>
-                <Download className="w-4 h-4 mr-2" />
-                Download Package
+              <h3 className="text-xl font-semibold mb-2">Run in Browser</h3>
+              <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+                Start chatting instantly. Works on any device with a web browser.
+              </p>
+              
+              <Button onClick={handleRunInBrowser} size="lg" className="px-8">
+                <ExternalLink className="w-5 h-5 mr-2" />
+                Open Chat
               </Button>
+
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Badge className="text-xs bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">
+                  Instant
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  No installation required
+                </Badge>
+              </div>
             </div>
           </TabsContent>
 
@@ -285,7 +452,7 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
 
                 <div className="p-4 rounded-lg border bg-muted/30">
                   <h4 className="font-medium text-sm mb-2">Quick Start</h4>
-                  <pre className="text-xs font-mono bg-background p-3 rounded">
+                  <pre className="text-xs font-mono bg-background p-3 rounded overflow-x-auto">
 {`curl -X POST ${deployedUrl} \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -295,11 +462,11 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
               </motion.div>
             ) : (
               <div className="space-y-4">
-                <div className="p-6 text-center rounded-lg border bg-muted/30">
+                <div className="text-center p-6 rounded-xl border bg-muted/30">
                   <Cloud className="w-12 h-12 text-primary mx-auto mb-4" />
                   <h3 className="font-medium mb-2">Deploy as API</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Get a hosted API endpoint for your agent. Access it from anywhere.
+                    Get a hosted API endpoint for your agent.
                   </p>
                   <Button onClick={handleDeployAPI} disabled={isDeploying}>
                     {isDeploying ? (
@@ -316,74 +483,93 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="p-3 rounded-lg border">
-                    <p className="text-2xl font-bold text-primary">∞</p>
-                    <p className="text-xs text-muted-foreground">Requests/month</p>
-                  </div>
-                  <div className="p-3 rounded-lg border">
-                    <p className="text-2xl font-bold text-primary">99.9%</p>
-                    <p className="text-xs text-muted-foreground">Uptime SLA</p>
-                  </div>
-                  <div className="p-3 rounded-lg border">
-                    <p className="text-2xl font-bold text-primary">&lt;100ms</p>
-                    <p className="text-xs text-muted-foreground">Avg latency</p>
-                  </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  {[
+                    { value: "∞", label: "Requests/mo" },
+                    { value: "99.9%", label: "Uptime" },
+                    { value: "<100ms", label: "Latency" },
+                  ].map(({ value, label }) => (
+                    <div key={label} className="p-3 rounded-lg border">
+                      <p className="text-lg font-bold text-primary">{value}</p>
+                      <p className="text-[10px] text-muted-foreground">{label}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
           </TabsContent>
 
-          {/* Desktop Tab */}
-          <TabsContent value="desktop" className="mt-4 space-y-4">
-            <div className="p-6 text-center rounded-lg border bg-muted/30">
-              <Monitor className="w-12 h-12 text-primary mx-auto mb-4" />
-              <h3 className="font-medium mb-2">Desktop Application</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Run your agent locally with the AgentForge Runner. 
-                Schedule tasks, set triggers, and work offline.
-              </p>
-              
-              <div className="flex justify-center gap-2 mb-4">
-                {[
-                  { os: "macOS", available: true },
-                  { os: "Windows", available: true },
-                  { os: "Linux", available: true },
-                ].map(({ os, available }) => (
-                  <Button
-                    key={os}
-                    variant="outline"
-                    disabled={!available}
-                    className="gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    {os}
-                    {!available && <Badge variant="secondary" className="text-[10px]">Soon</Badge>}
-                  </Button>
-                ))}
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Requires AgentForge Runner v2.0+
-              </p>
+          {/* Code Tab */}
+          <TabsContent value="code" className="mt-4 space-y-4">
+            <div className="flex gap-2">
+              {[
+                { id: "python", label: "Python", icon: Terminal },
+                { id: "javascript", label: "JS", icon: FileCode },
+                { id: "json", label: "JSON", icon: FileJson },
+                { id: "docker", label: "Docker", icon: Package },
+              ].map(({ id, label, icon: Icon }) => (
+                <Button
+                  key={id}
+                  variant={exportFormat === id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setExportFormat(id as ExportFormat)}
+                  className="flex-1"
+                >
+                  <Icon className="w-4 h-4 mr-1" />
+                  {label}
+                </Button>
+              ))}
             </div>
 
-            <div className="p-4 rounded-lg border">
-              <h4 className="font-medium text-sm mb-3">Features</h4>
-              <ul className="space-y-2 text-sm">
-                {[
-                  "Run agents locally - your data stays private",
-                  "Schedule recurring tasks with cron expressions",
-                  "Set up file/email triggers to automate workflows",
-                  "Works offline with local models (Ollama)",
-                  "System tray integration for quick access",
-                ].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    <span className="text-muted-foreground">{feature}</span>
-                  </li>
-                ))}
-              </ul>
+            <div className="relative">
+              <div className="flex items-center justify-between p-2 border rounded-t-lg bg-muted">
+                <Badge variant="secondary" className="text-xs">
+                  {exportFormat === "docker" ? "Dockerfile" : `.${exportFormat}`}
+                </Badge>
+                <Button variant="ghost" size="sm" onClick={handleCopy}>
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 mr-1" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 mr-1" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+              <ScrollArea className="h-[200px] border border-t-0 rounded-b-lg">
+                <pre className="p-4 text-xs font-mono leading-relaxed">
+                  <code>{code}</code>
+                </pre>
+              </ScrollArea>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg border">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={includeEnvTemplate}
+                    onCheckedChange={setIncludeEnvTemplate}
+                    id="env"
+                  />
+                  <Label htmlFor="env" className="text-sm">Include .env template</Label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={includeReadme}
+                    onCheckedChange={setIncludeReadme}
+                    id="readme"
+                  />
+                  <Label htmlFor="readme" className="text-sm">Include README</Label>
+                </div>
+              </div>
+              <Button onClick={handleDownloadPackage}>
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </Button>
             </div>
           </TabsContent>
         </Tabs>
@@ -458,7 +644,6 @@ function generateJavaScriptCode(agent: BuilderAgent, toolNames: string): string 
 
 import { Agent, Tool } from '@agentforge/sdk';
 
-// Configuration
 const config = {
   name: "${agent.name}",
   goal: "${agent.goal}",
@@ -468,34 +653,26 @@ const config = {
   maxTokens: ${agent.maxTokens},
 };
 
-// Initialize agent
 const agent = new Agent(config);
 
-// Add tools
 const tools = ["${toolNames}"];
 tools.forEach(toolId => {
   agent.addTool(Tool.fromRegistry(toolId));
 });
 
-// Set system prompt
 agent.setSystemPrompt(\`
 ${agent.systemPrompt || `You are ${agent.name}, an AI assistant.
 Your goal: ${agent.goal}
-Personality: ${agent.personality}
-
-Always be helpful, accurate, and professional.`}
+Personality: ${agent.personality}`}
 \`);
 
-// Chat function
 export async function chat(message) {
   return await agent.chat(message);
 }
 
-// Main
 async function main() {
   console.log(\`Starting \${config.name}...\`);
-  
-  const response = await chat("Hello! What can you help me with?");
+  const response = await chat("Hello!");
   console.log(\`\${config.name}: \${response}\`);
 }
 
@@ -525,90 +702,21 @@ function generateJsonConfig(agent: BuilderAgent): string {
 function generateDockerfile(agent: BuilderAgent): string {
   const agentSlug = agent.name.toLowerCase().replace(/\s+/g, "_");
   return `# ${agent.name} - AgentForge Agent
-# Generated by AgentForge
-
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy agent code
 COPY ${agentSlug}_agent.py .
 COPY config.json .
 
-# Environment variables
 ENV OPENAI_API_KEY=""
 ENV AGENT_PORT=8080
 
-# Expose port
 EXPOSE 8080
 
-# Run agent
 CMD ["python", "${agentSlug}_agent.py", "--serve", "--port", "8080"]
-`;
-}
-
-function generateEnvTemplate(agent: BuilderAgent): string {
-  return `# ${agent.name} - Environment Variables
-# Copy this file to .env and fill in your values
-
-# API Keys (add keys for the providers you use)
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-GROQ_API_KEY=
-
-# Optional: Custom base URLs
-# OPENAI_BASE_URL=https://api.openai.com/v1
-
-# Agent Settings
-AGENT_NAME="${agent.name}"
-AGENT_MODEL="${agent.modelId}"
-AGENT_TEMPERATURE=${agent.temperature}
-`;
-}
-
-function generateReadme(agent: BuilderAgent): string {
-  return `# ${agent.name}
-
-> Generated by [AgentForge](https://agentforge.app)
-
-## Overview
-
-${agent.goal}
-
-## Quick Start
-
-1. Install dependencies:
-\`\`\`bash
-pip install agentforge
-\`\`\`
-
-2. Set up environment:
-\`\`\`bash
-cp .env.example .env
-# Edit .env with your API keys
-\`\`\`
-
-3. Run the agent:
-\`\`\`bash
-python ${agent.name.toLowerCase().replace(/\s+/g, "_")}_agent.py
-\`\`\`
-
-## Configuration
-
-- **Model**: ${agent.modelId}
-- **Temperature**: ${agent.temperature}
-- **Max Tokens**: ${agent.maxTokens}
-
-## Tools
-
-${agent.tools.map(t => `- ${t}`).join('\n')}
-
-## License
-
-MIT
 `;
 }
