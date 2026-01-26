@@ -8,7 +8,7 @@ fn emit_config(app: &tauri::AppHandle, config_json: String) {
     let _ = app.emit("agentforge://config", config_json);
 }
 
-fn emit_deeplink(app: &tauri::AppHandle, url: &str) {
+fn emit_deeplink(app: &tauri::AppHandle, url: String) {
     let _ = app.emit("agentforge://deeplink", url);
 }
 
@@ -51,7 +51,7 @@ fn main() {
             // Listen for deep link events and forward to the frontend
             let deep_link_handle = app.handle();
             deep_link_handle.listen("deep-link://new-url", move |event: Event| {
-                emit_deeplink(&deep_link_handle, event.payload());
+                emit_deeplink(&deep_link_handle, event.payload().to_string());
             });
 
             Ok(())
