@@ -263,15 +263,20 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
   };
 
   const GITHUB_REPO = "Jonnycatx/agentforge-runner";
+  const RUNNER_ASSET_NAMES: Record<OSType, string> = {
+    mac: "AgentForge.Runner_2.0.0_aarch64.dmg",
+    windows: "AgentForge.Runner_2.0.0_x64-setup.exe",
+    linux: "AgentForge.Runner_2.0.0_amd64.AppImage",
+    unknown: "",
+  };
   
   const getRunnerDownloadUrl = (os: OSType = selectedOS) => {
     const baseUrl = `https://github.com/${GITHUB_REPO}/releases/latest/download`;
-    switch (os) {
-      case "mac": return `${baseUrl}/AgentForge-Runner_universal.dmg`;
-      case "windows": return `${baseUrl}/AgentForge-Runner_x64-setup.exe`;
-      case "linux": return `${baseUrl}/AgentForge-Runner_amd64.AppImage`;
-      default: return `https://github.com/${GITHUB_REPO}/releases`;
+    const filename = RUNNER_ASSET_NAMES[os];
+    if (!filename) {
+      return `https://github.com/${GITHUB_REPO}/releases`;
     }
+    return `${baseUrl}/${filename}`;
   };
 
   const code = generateCode(exportFormat);
