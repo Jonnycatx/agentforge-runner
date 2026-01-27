@@ -333,6 +333,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.handle_chat(data)
         elif self.path == '/config':
             self.handle_config_update(data)
+        elif self.path == '/providers/test':
+            self.handle_provider_test(data)
         elif self.path == '/tools/execute':
             self.handle_tool_execute(data)
         elif self.path == '/tasks/submit':
@@ -452,6 +454,46 @@ class RequestHandler(BaseHTTPRequestHandler):
         global current_config
         current_config.update(data)
         self.send_json_response({'status': 'updated'})
+
+    def handle_provider_test(self, data):
+        provider = data.get('provider', 'ollama')
+        api_key = data.get('apiKey', '')
+        model = data.get('model', '')
+
+        try:
+            if provider == 'ollama':
+                self.test_ollama()
+                self.send_json_response({'success': True, 'message': 'Ollama is running.'})
+                return
+
+            if not api_key:
+                self.send_json_response({'success': False, 'error': 'Missing API key.'}, status=400)
+                return
+
+            if provider == 'openai':
+                self.test_openai(api_key)
+                self.send_json_response({'success': True, 'message': 'Connected to OpenAI.'})
+                return
+            if provider == 'anthropic':
+                self.test_anthropic(api_key)
+                self.send_json_response({'success': True, 'message': 'Connected to Anthropic.'})
+                return
+            if provider == 'groq':
+                self.test_groq(api_key)
+                self.send_json_response({'success': True, 'message': 'Connected to Groq.'})
+                return
+            if provider == 'google':
+                self.test_google(api_key)
+                self.send_json_response({'success': True, 'message': 'Connected to Google AI.'})
+                return
+            if provider == 'xai':
+                self.test_xai(api_key)
+                self.send_json_response({'success': True, 'message': 'Connected to xAI.'})
+                return
+
+            self.send_json_response({'success': False, 'error': f'Unsupported provider: {provider}'}, status=400)
+        except Exception as e:
+            self.send_json_response({'success': False, 'error': str(e)}, status=500)
 
     # AI provider methods (same as before)
     def call_ollama(self, model, messages, temperature):
@@ -601,6 +643,56 @@ class RequestHandler(BaseHTTPRequestHandler):
         with urllib.request.urlopen(req, timeout=60, context=ctx) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             return data['choices'][0]['message']['content']
+
+    def test_ollama(self):
+        url = 'http://localhost:11434/api/tags'
+        req = urllib.request.Request(url)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status >= 400:
+                    raise Exception('Ollama returned an error.')
+        except urllib.error.URLError:
+            raise Exception('Ollama is not running on port 11434.')
+
+    def test_openai(self, api_key):
+        self.test_openai_compatible('https://api.openai.com/v1/models', api_key)
+
+    def test_groq(self, api_key):
+        self.test_openai_compatible('https://api.groq.com/openai/v1/models', api_key)
+
+    def test_xai(self, api_key):
+        self.test_openai_compatible('https://api.x.ai/v1/models', api_key)
+
+    def test_anthropic(self, api_key):
+        url = 'https://api.anthropic.com/v1/models'
+        headers = {
+            'x-api-key': api_key,
+            'anthropic-version': '2023-06-01',
+        }
+        self.http_get_json(url, headers=headers)
+
+    def test_google(self, api_key):
+        url = f'https://generativelanguage.googleapis.com/v1beta/models?key={api_key}'
+        self.http_get_json(url)
+
+    def test_openai_compatible(self, url, api_key):
+        headers = {'Authorization': f'Bearer {api_key}'}
+        self.http_get_json(url, headers=headers)
+
+    def http_get_json(self, url, headers=None):
+        req = urllib.request.Request(url, headers=headers or {})
+        ctx = ssl.create_default_context()
+        try:
+            with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+                if resp.status >= 400:
+                    raise Exception(f'HTTP {resp.status}')
+                resp.read()
+        except urllib.error.HTTPError as e:
+            try:
+                body = e.read().decode('utf-8')
+                raise Exception(body or f'HTTP {e.code}')
+            except Exception:
+                raise Exception(f'HTTP {e.code}')
 
     def send_json_response(self, data, status=200):
         self.send_response(status)

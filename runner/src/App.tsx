@@ -67,6 +67,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'error'>('checking');
   const [apiKey, setApiKey] = useState('');
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const promptedMissingKeyRef = useRef(false);
@@ -156,6 +158,46 @@ export default function App() {
       setBackendStatus(response.ok ? 'connected' : 'error');
     } catch {
       setBackendStatus('error');
+    }
+  };
+
+  const testProviderConnection = async () => {
+    if (config.provider !== 'ollama' && !(apiKey || '').trim()) {
+      setTestStatus('error');
+      setTestMessage('Missing API key.');
+      return;
+    }
+
+    setTestStatus('testing');
+    setTestMessage('');
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/providers/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: config.provider,
+          model: config.model,
+          apiKey,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.success === false) {
+        const errorMsg = data.error || `Failed to connect to ${config.provider}.`;
+        setTestStatus('error');
+        setTestMessage(errorMsg);
+        return;
+      }
+
+      setTestStatus('success');
+      setTestMessage(data.message || `Connected to ${config.provider}.`);
+      checkBackend();
+    } catch {
+      setTestStatus('error');
+      setTestMessage('Runner backend is not responding. Please restart the app.');
     }
   };
 
@@ -331,6 +373,15 @@ export default function App() {
     }
   };
 
+  const handleProviderChange = (provider: string) => {
+    const stored = readStoredSettings();
+    const storedKey = stored.apiKeys?.[provider] || '';
+    setConfig({ ...config, provider });
+    setApiKey(storedKey);
+    setTestStatus('idle');
+    setTestMessage('');
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -358,6 +409,8 @@ export default function App() {
       });
       setConfig(updatedConfig);
       setShowSettings(false);
+      setTestStatus('idle');
+      setTestMessage('');
       checkBackend();
     } catch {
       console.error('Failed to save');
@@ -518,7 +571,7 @@ export default function App() {
               <label className="block text-[10px] uppercase tracking-wider text-white/40 mb-1.5">Provider</label>
               <select
                 value={config.provider}
-                onChange={(e) => setConfig({ ...config, provider: e.target.value })}
+                onChange={(e) => handleProviderChange(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 transition-colors"
               >
                 <option value="ollama">Ollama (Local)</option>
@@ -562,12 +615,28 @@ export default function App() {
               Save Changes
             </button>
             <button
-              onClick={checkBackend}
-              className="px-4 bg-white/5 hover:bg-white/10 text-white/70 font-medium py-2 rounded-lg transition-all text-sm active:scale-[0.98]"
+              onClick={testProviderConnection}
+              className="px-4 bg-white/5 hover:bg-white/10 text-white/70 font-medium py-2 rounded-lg transition-all text-sm active:scale-[0.98] disabled:opacity-60"
+              disabled={testStatus === 'testing'}
             >
-              Test
+              {testStatus === 'testing' ? 'Testing...' : 'Test'}
             </button>
           </div>
+
+          {testStatus !== 'idle' && (
+            <div
+              className={clsx(
+                'text-xs px-3 py-2 rounded-lg border',
+                testStatus === 'success'
+                  ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10'
+                  : testStatus === 'error'
+                    ? 'text-red-300 border-red-500/30 bg-red-500/10'
+                    : 'text-white/60 border-white/10 bg-white/5'
+              )}
+            >
+              {testMessage || (testStatus === 'testing' ? 'Testing connection...' : '')}
+            </div>
+          )}
         </div>
       )}
 
@@ -742,7 +811,7 @@ export default function App() {
         {backendStatus === 'error' && !missingApiKey && (
           <div className="mt-3 flex items-center justify-center gap-2 text-xs text-red-400/80">
             <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-            Cannot connect. Make sure Ollama is running or configure an API key.
+            Runner backend is offline. Please restart the app.
           </div>
         )}
       </div>
