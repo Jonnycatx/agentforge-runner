@@ -88,7 +88,20 @@ jobs:
         working-directory: runner
         run: npm run build
 
-      - name: Build Tauri
+      - name: Build Tauri (macOS signed + notarized)
+        if: matrix.platform == 'macos-latest'
+        working-directory: runner
+        run: npm run tauri:build
+        env:
+          CI: true
+          APPLE_CERTIFICATE: ${{ secrets.CSC_LINK }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Build Tauri (Windows/Linux)
+        if: matrix.platform != 'macos-latest'
         working-directory: runner
         run: npm run tauri:build
         env:
