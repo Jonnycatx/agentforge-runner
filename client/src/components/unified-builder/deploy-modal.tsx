@@ -185,7 +185,7 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
         avatarColor: AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)],
         provider: agent.providerId || "ollama",
         model: agent.modelId || "llama3.2",
-        apiKey: providerApiKey,
+        apiKey: undefined,
         temperature: agent.temperature || 0.7,
         tools: agent.tools || [],
         version: "2.0",

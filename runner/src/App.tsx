@@ -41,8 +41,12 @@ const DEFAULT_CONFIG: AgentConfig = {
 const BACKEND_URL = 'http://127.0.0.1:8765';
 const SETTINGS_STORAGE_KEY = 'agentforge:settings';
 
-type StoredSettings = Pick<AgentConfig, 'provider' | 'model' | 'temperature'> & {
+type StoredSettings = {
+  provider?: string;
+  model?: string;
+  temperature?: number;
   apiKey?: string;
+  apiKeys?: Record<string, string>;
 };
 
 // Avatar gradient presets
@@ -65,8 +69,11 @@ export default function App() {
   const [apiKey, setApiKey] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const promptedMissingKeyRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const missingApiKey = config.provider !== 'ollama' && !(apiKey || '').trim();
 
   const readStoredSettings = (): StoredSettings => {
     try {
@@ -78,6 +85,7 @@ export default function App() {
         model: typeof parsed.model === 'string' ? parsed.model : undefined,
         temperature: typeof parsed.temperature === 'number' ? parsed.temperature : undefined,
         apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : undefined,
+        apiKeys: typeof parsed.apiKeys === 'object' && parsed.apiKeys ? parsed.apiKeys : undefined,
       };
     } catch {
       return {};
@@ -94,12 +102,17 @@ export default function App() {
 
   const mergeConfigWithSettings = (incoming: Partial<AgentConfig>): AgentConfig => {
     const stored = readStoredSettings();
+    const resolvedProvider = incoming.provider ?? stored.provider ?? DEFAULT_CONFIG.provider;
+    const storedApiKey =
+      stored.apiKeys?.[resolvedProvider] ||
+      stored.apiKey ||
+      '';
     const incomingApiKey = (incoming.apiKey || '').trim();
-    const mergedApiKey = incomingApiKey || stored.apiKey || '';
+    const mergedApiKey = incomingApiKey || storedApiKey || '';
     const merged: AgentConfig = {
       ...DEFAULT_CONFIG,
       ...incoming,
-      provider: incoming.provider ?? stored.provider ?? DEFAULT_CONFIG.provider,
+      provider: resolvedProvider,
       model: incoming.model ?? stored.model ?? DEFAULT_CONFIG.model,
       temperature: incoming.temperature ?? stored.temperature ?? DEFAULT_CONFIG.temperature,
       apiKey: mergedApiKey,
@@ -117,6 +130,13 @@ export default function App() {
     checkBackend();
     loadConfig();
   }, []);
+
+  useEffect(() => {
+    if (missingApiKey && !showSettings && !promptedMissingKeyRef.current) {
+      setShowSettings(true);
+      promptedMissingKeyRef.current = true;
+    }
+  }, [missingApiKey, showSettings]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -151,6 +171,10 @@ export default function App() {
           provider: loadedConfig.provider,
           model: loadedConfig.model,
           temperature: loadedConfig.temperature,
+          apiKeys: {
+            ...(readStoredSettings().apiKeys || {}),
+            ...(loadedConfig.apiKey ? { [loadedConfig.provider]: loadedConfig.apiKey } : {}),
+          },
           apiKey: loadedConfig.apiKey || undefined,
         });
         // Add welcome message
@@ -180,6 +204,10 @@ export default function App() {
         provider: loadedConfig.provider,
         model: loadedConfig.model,
         temperature: loadedConfig.temperature,
+        apiKeys: {
+          ...(readStoredSettings().apiKeys || {}),
+          ...(loadedConfig.apiKey ? { [loadedConfig.provider]: loadedConfig.apiKey } : {}),
+        },
         apiKey: loadedConfig.apiKey || undefined,
       });
       setMessages([{
@@ -317,6 +345,10 @@ export default function App() {
         provider: updatedConfig.provider,
         model: updatedConfig.model,
         temperature: updatedConfig.temperature,
+        apiKeys: {
+          ...(readStoredSettings().apiKeys || {}),
+          ...(apiKey ? { [updatedConfig.provider]: apiKey } : {}),
+        },
         apiKey,
       });
       await fetch(`${BACKEND_URL}/config`, {
@@ -694,7 +726,20 @@ export default function App() {
         </div>
         
         {/* Connection status */}
-        {backendStatus === 'error' && (
+        {missingApiKey && (
+          <div className="mt-3 flex items-center justify-center gap-2 text-xs text-amber-300/80">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Missing API key for {config.provider}. Open settings to add it.
+            <button
+              onClick={() => setShowSettings(true)}
+              className="ml-2 underline underline-offset-2 text-amber-200 hover:text-amber-100"
+            >
+              Open settings
+            </button>
+          </div>
+        )}
+
+        {backendStatus === 'error' && !missingApiKey && (
           <div className="mt-3 flex items-center justify-center gap-2 text-xs text-red-400/80">
             <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
             Cannot connect. Make sure Ollama is running or configure an API key.
