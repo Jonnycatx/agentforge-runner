@@ -94,13 +94,15 @@ export default function App() {
 
   const mergeConfigWithSettings = (incoming: Partial<AgentConfig>): AgentConfig => {
     const stored = readStoredSettings();
+    const incomingApiKey = (incoming.apiKey || '').trim();
+    const mergedApiKey = incomingApiKey || stored.apiKey || '';
     const merged: AgentConfig = {
       ...DEFAULT_CONFIG,
       ...incoming,
       provider: incoming.provider ?? stored.provider ?? DEFAULT_CONFIG.provider,
       model: incoming.model ?? stored.model ?? DEFAULT_CONFIG.model,
       temperature: incoming.temperature ?? stored.temperature ?? DEFAULT_CONFIG.temperature,
-      apiKey: incoming.apiKey ?? stored.apiKey ?? '',
+      apiKey: mergedApiKey,
       tools: incoming.tools ?? DEFAULT_CONFIG.tools,
     };
 
@@ -145,6 +147,12 @@ export default function App() {
         const loadedConfig = mergeConfigWithSettings(data);
         setConfig(loadedConfig);
         setApiKey(loadedConfig.apiKey || '');
+        writeStoredSettings({
+          provider: loadedConfig.provider,
+          model: loadedConfig.model,
+          temperature: loadedConfig.temperature,
+          apiKey: loadedConfig.apiKey || undefined,
+        });
         // Add welcome message
         if (data.name) {
           setMessages([{
@@ -168,6 +176,12 @@ export default function App() {
       const loadedConfig = mergeConfigWithSettings(parsedConfig as Partial<AgentConfig>);
       setConfig(loadedConfig);
       setApiKey(loadedConfig.apiKey || '');
+      writeStoredSettings({
+        provider: loadedConfig.provider,
+        model: loadedConfig.model,
+        temperature: loadedConfig.temperature,
+        apiKey: loadedConfig.apiKey || undefined,
+      });
       setMessages([{
         id: '1',
         role: 'assistant',

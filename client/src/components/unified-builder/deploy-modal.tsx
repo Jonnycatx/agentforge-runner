@@ -46,6 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { useAgentStore } from "@/lib/agent-store";
 import type { BuilderAgent } from "@/pages/unified-builder";
 import type { ToolDefinition } from "@shared/schema";
 
@@ -69,6 +70,7 @@ function detectOS(): OSType {
 
 export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalProps) {
   const { toast } = useToast();
+  const { providers } = useAgentStore();
   const [activeTab, setActiveTab] = useState("desktop");
   const [exportFormat, setExportFormat] = useState<ExportFormat>("python");
   const [copied, setCopied] = useState(false);
@@ -78,6 +80,7 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
   const [detectedOS, setDetectedOS] = useState<OSType>("unknown");
   const [selectedOS, setSelectedOS] = useState<OSType>("unknown");
   const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const providerApiKey = providers.find((p) => p.id === agent.providerId)?.apiKey || "";
   
   // Export options
   const [includeEnvTemplate, setIncludeEnvTemplate] = useState(true);
@@ -182,7 +185,7 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
         avatarColor: AVATAR_GRADIENTS[Math.floor(Math.random() * AVATAR_GRADIENTS.length)],
         provider: agent.providerId || "ollama",
         model: agent.modelId || "llama3.2",
-        apiKey: "",
+        apiKey: providerApiKey,
         temperature: agent.temperature || 0.7,
         tools: agent.tools || [],
         version: "2.0",
