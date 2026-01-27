@@ -265,6 +265,35 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
     }
   };
 
+  const getInstallChecklist = (os: OSType) => {
+    switch (os) {
+      case "mac":
+        return [
+          "Open the .dmg and drag AgentForge Runner to Applications.",
+          "Open AgentForge Runner once from Applications (this completes setup).",
+          "Come back here and click Download & Open again.",
+        ];
+      case "windows":
+        return [
+          "Run the installer and finish setup.",
+          "Open AgentForge Runner once from the Start Menu.",
+          "Come back here and click Download & Open again.",
+        ];
+      case "linux":
+        return [
+          "Make the AppImage executable (chmod +x).",
+          "Open AgentForge Runner once.",
+          "Come back here and click Download & Open again.",
+        ];
+      default:
+        return [
+          "Install AgentForge Runner for your OS.",
+          "Open AgentForge Runner once.",
+          "Come back here and click Download & Open again.",
+        ];
+    }
+  };
+
   const GITHUB_REPO = "Jonnycatx/agentforge-runner";
   const RUNNER_ASSET_NAMES: Record<OSType, string> = {
     mac: "AgentForge.Runner_2.0.0_aarch64.dmg",
@@ -413,13 +442,21 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
                     </Button>
                   </a>
                   
-                  <p className="text-xs text-muted-foreground">
-                    {selectedOS === "mac"
-                      ? "Open .dmg → Drag to Applications → Double-click to run. macOS may ask for your password on install."
-                      : selectedOS === "windows"
-                        ? "Run the installer → Launch from Start Menu"
-                        : "Make executable (chmod +x) → Double-click to run"}
-                  </p>
+                  <div className="rounded-md border border-dashed border-muted-foreground/30 bg-background/60 p-3">
+                    <p className="text-xs font-medium text-foreground mb-2">
+                      Post-download checklist (dummy-proof)
+                    </p>
+                    <ul className="space-y-1 text-xs text-muted-foreground list-disc pl-4">
+                      {getInstallChecklist(selectedOS).map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ul>
+                    {selectedOS === "mac" && (
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        macOS may ask for your password during install.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </CollapsibleContent>
             </Collapsible>
