@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
+import { WebviewWindow } from '@tauri-apps/api/window';
 import { Send, Settings, User, Loader2, Sparkles, X, Zap, Volume2, VolumeX } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -40,6 +41,9 @@ const DEFAULT_CONFIG: AgentConfig = {
 
 const BACKEND_URL = 'http://127.0.0.1:8765';
 const SETTINGS_STORAGE_KEY = 'agentforge:settings';
+const EMAIL_OAUTH_TOKENS_KEY = 'agentforge:email-oauth-tokens';
+const DEFAULT_GOOGLE_CLIENT_ID = import.meta.env.VITE_EMAIL_GOOGLE_CLIENT_ID || '';
+const DEFAULT_MICROSOFT_CLIENT_ID = import.meta.env.VITE_EMAIL_MICROSOFT_CLIENT_ID || '';
 
 type StoredSettings = {
   provider?: string;
@@ -48,6 +52,13 @@ type StoredSettings = {
   temperature?: number;
   apiKey?: string;
   apiKeys?: Record<string, string>;
+};
+
+type EmailToken = {
+  provider: 'google' | 'microsoft';
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number;
 };
 
 const PROVIDER_MODELS: Record<string, string[]> = {
@@ -80,6 +91,14 @@ export default function App() {
   const [testMessage, setTestMessage] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [emailSettings, setEmailSettings] = useState({
+    googleClientId: DEFAULT_GOOGLE_CLIENT_ID,
+    microsoftClientId: DEFAULT_MICROSOFT_CLIENT_ID,
+  });
+  const [emailTokens, setEmailTokens] = useState<Record<string, EmailToken>>({});
+  const [emailConnectStatus, setEmailConnectStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [emailConnectMessage, setEmailConnectMessage] = useState('');
+  const [emailAddress, setEmailAddress] = useState('');
   const promptedMissingKeyRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -112,6 +131,24 @@ export default function App() {
     }
   };
 
+  const readEmailTokens = (): Record<string, EmailToken> => {
+    try {
+      const raw = localStorage.getItem(EMAIL_OAUTH_TOKENS_KEY);
+      if (!raw) return {};
+      return JSON.parse(raw) as Record<string, EmailToken>;
+    } catch {
+      return {};
+    }
+  };
+
+  const writeEmailTokens = (tokens: Record<string, EmailToken>) => {
+    try {
+      localStorage.setItem(EMAIL_OAUTH_TOKENS_KEY, JSON.stringify(tokens));
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
   const mergeConfigWithSettings = (incoming: Partial<AgentConfig>): AgentConfig => {
     const stored = readStoredSettings();
     const resolvedProvider = incoming.provider ?? stored.provider ?? DEFAULT_CONFIG.provider;
@@ -141,6 +178,11 @@ export default function App() {
 
   useEffect(() => {
     loadConfig();
+    setEmailSettings({
+      googleClientId: DEFAULT_GOOGLE_CLIENT_ID,
+      microsoftClientId: DEFAULT_MICROSOFT_CLIENT_ID,
+    });
+    setEmailTokens(readEmailTokens());
   }, []);
 
   useEffect(() => {
@@ -180,6 +222,16 @@ export default function App() {
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role, content: m.content }));
     return [system, ...history, { role: 'user' as const, content: userContent }];
+  };
+
+  const buildInferenceMessagesWithContext = (userContent: string, context?: string) => {
+    const base = buildInferenceMessages(userContent);
+    if (!context) return base;
+    const system = base[0];
+    return [
+      { ...system, content: `${system.content}\n\nEmail context:\n${context}` },
+      ...base.slice(1),
+    ];
   };
 
   const callOpenAICompatible = async (url: string, apiKeyValue: string, model: string, inferenceMessages: any[]) => {
@@ -291,8 +343,296 @@ export default function App() {
     return data?.message?.content || '';
   };
 
-  const runInferenceDirect = async (userContent: string) => {
-    const inferenceMessages = buildInferenceMessages(userContent);
+  const makePkceCodeVerifier = () => {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array, (b) => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const base64UrlEncode = (buffer: ArrayBuffer) => {
+    const bytes = new Uint8Array(buffer);
+    let str = '';
+    bytes.forEach((b) => {
+      str += String.fromCharCode(b);
+    });
+    return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const makePkceCodeChallenge = async (verifier: string) => {
+    const data = new TextEncoder().encode(verifier);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return base64UrlEncode(digest);
+  };
+
+  const savePendingOAuth = (provider: 'google' | 'microsoft', state: string, verifier: string) => {
+    localStorage.setItem(
+      'agentforge:oauth-pending',
+      JSON.stringify({ provider, state, verifier, createdAt: Date.now() })
+    );
+  };
+
+  const readPendingOAuth = () => {
+    try {
+      const raw = localStorage.getItem('agentforge:oauth-pending');
+      if (!raw) return null;
+      return JSON.parse(raw) as { provider: 'google' | 'microsoft'; state: string; verifier: string };
+    } catch {
+      return null;
+    }
+  };
+
+  const clearPendingOAuth = () => {
+    localStorage.removeItem('agentforge:oauth-pending');
+  };
+
+  const startEmailOAuth = async (provider: 'google' | 'microsoft') => {
+    setEmailConnectStatus('connecting');
+    setEmailConnectMessage('');
+
+    if (!emailAddress.trim()) {
+      setEmailConnectStatus('error');
+      setEmailConnectMessage('Enter your email address first.');
+      return;
+    }
+
+    const settings = emailSettings;
+    const clientId = provider === 'google' ? settings.googleClientId : settings.microsoftClientId;
+    if (!clientId) {
+      setEmailConnectStatus('error');
+      setEmailConnectMessage(
+        `${provider === 'google' ? 'Gmail' : 'Outlook'} connect is not configured in this build.`
+      );
+      return;
+    }
+
+    const verifier = makePkceCodeVerifier();
+    const challenge = await makePkceCodeChallenge(verifier);
+    const state = crypto.randomUUID();
+    savePendingOAuth(provider, state, verifier);
+
+    const redirectUri = `agentforge://oauth/${provider}`;
+    let authUrl = '';
+    if (provider === 'google') {
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: 'true',
+        scope: [
+          'https://www.googleapis.com/auth/gmail.readonly',
+          'https://www.googleapis.com/auth/gmail.send',
+          'https://www.googleapis.com/auth/gmail.modify',
+          'https://www.googleapis.com/auth/gmail.compose',
+        ].join(' '),
+        state,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+      });
+      authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+    } else {
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        response_mode: 'query',
+        scope: 'offline_access Mail.Read Mail.ReadWrite Mail.Send',
+        state,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+      });
+      authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
+    }
+
+    const windowLabel = `oauth-${provider}`;
+    const existing = WebviewWindow.getByLabel(windowLabel);
+    existing?.close();
+    new WebviewWindow(windowLabel, {
+      url: authUrl,
+      title: provider === 'google' ? 'Connect Gmail' : 'Connect Outlook',
+      width: 520,
+      height: 720,
+      resizable: false,
+    });
+  };
+
+  const exchangeToken = async (
+    provider: 'google' | 'microsoft',
+    code: string,
+    verifier: string
+  ) => {
+    const settings = emailSettings;
+    const clientId = provider === 'google' ? settings.googleClientId : settings.microsoftClientId;
+    if (!clientId) {
+      throw new Error('OAuth client ID missing.');
+    }
+
+    const redirectUri = `agentforge://oauth/${provider}`;
+    const body = new URLSearchParams({
+      client_id: clientId,
+      code,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+      code_verifier: verifier,
+    });
+
+    const tokenUrl =
+      provider === 'google'
+        ? 'https://oauth2.googleapis.com/token'
+        : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'OAuth token exchange failed.');
+    }
+
+    return response.json();
+  };
+
+  const handleEmailOAuthCallback = async (provider: 'google' | 'microsoft', code: string, state: string) => {
+    try {
+      const pending = readPendingOAuth();
+      if (!pending || pending.state !== state || pending.provider !== provider) {
+        setEmailConnectStatus('error');
+        setEmailConnectMessage('OAuth state mismatch. Please try again.');
+        return;
+      }
+
+      const tokenResponse = await exchangeToken(provider, code, pending.verifier);
+      const accessToken = tokenResponse.access_token as string;
+      const refreshToken = tokenResponse.refresh_token as string | undefined;
+      const expiresIn = (tokenResponse.expires_in as number | undefined) || 3600;
+
+      const nextTokens = {
+        ...emailTokens,
+        [provider]: {
+          provider,
+          accessToken,
+          refreshToken,
+          expiresAt: Date.now() + expiresIn * 1000,
+        },
+      };
+
+      setEmailTokens(nextTokens);
+      writeEmailTokens(nextTokens);
+      setEmailConnectStatus('connected');
+      setEmailConnectMessage(`${provider === 'google' ? 'Gmail' : 'Outlook'} connected.`);
+      clearPendingOAuth();
+
+      WebviewWindow.getByLabel(`oauth-${provider}`)?.close();
+    } catch (error) {
+      setEmailConnectStatus('error');
+      setEmailConnectMessage(error instanceof Error ? error.message : 'OAuth failed.');
+    }
+  };
+
+  const refreshEmailToken = async (provider: 'google' | 'microsoft') => {
+    const existing = emailTokens[provider];
+    if (!existing?.refreshToken) return existing;
+    const clientId = provider === 'google' ? emailSettings.googleClientId : emailSettings.microsoftClientId;
+    if (!clientId) return existing;
+
+    const tokenUrl =
+      provider === 'google'
+        ? 'https://oauth2.googleapis.com/token'
+        : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+
+    const body = new URLSearchParams({
+      client_id: clientId,
+      refresh_token: existing.refreshToken,
+      grant_type: 'refresh_token',
+      scope: provider === 'microsoft' ? 'offline_access Mail.Read Mail.ReadWrite Mail.Send' : undefined,
+    });
+
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+
+    if (!response.ok) return existing;
+    const data = await response.json();
+    const accessToken = data.access_token as string;
+    const expiresIn = (data.expires_in as number | undefined) || 3600;
+
+    const nextToken: EmailToken = {
+      ...existing,
+      accessToken,
+      expiresAt: Date.now() + expiresIn * 1000,
+    };
+
+    const nextTokens = { ...emailTokens, [provider]: nextToken };
+    setEmailTokens(nextTokens);
+    writeEmailTokens(nextTokens);
+    return nextToken;
+  };
+
+  const getActiveEmailToken = async (provider: 'google' | 'microsoft') => {
+    const token = emailTokens[provider];
+    if (!token) return null;
+    if (token.expiresAt && Date.now() > token.expiresAt - 60000) {
+      return await refreshEmailToken(provider);
+    }
+    return token;
+  };
+
+  const fetchEmailSummary = async (provider: 'google' | 'microsoft') => {
+    const token = await getActiveEmailToken(provider);
+    if (!token) {
+      throw new Error('Email account not connected.');
+    }
+
+    if (provider === 'google') {
+      const listResponse = await fetch(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=is:unread',
+        { headers: { Authorization: `Bearer ${token.accessToken}` } }
+      );
+      const listData = await listResponse.json();
+      const messages = listData.messages || [];
+      const details = await Promise.all(
+        messages.map(async (msg: { id: string }) => {
+          const response = await fetch(
+            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`,
+            { headers: { Authorization: `Bearer ${token.accessToken}` } }
+          );
+          const data = await response.json();
+          const headers = data.payload?.headers || [];
+          const from = headers.find((h: any) => h.name === 'From')?.value || 'Unknown';
+          const subject = headers.find((h: any) => h.name === 'Subject')?.value || 'No subject';
+          return `${subject} — ${from}`;
+        })
+      );
+      return details.length ? details.join('\n') : 'No unread emails.';
+    }
+
+    const response = await fetch(
+      "https://graph.microsoft.com/v1.0/me/messages?$top=5&$select=subject,from,receivedDateTime,bodyPreview&$filter=isRead eq false",
+      { headers: { Authorization: `Bearer ${token.accessToken}` } }
+    );
+    const data = await response.json();
+    const messages = data.value || [];
+    return messages.length
+      ? messages.map((m: any) => `${m.subject || 'No subject'} — ${m.from?.emailAddress?.address || 'Unknown'}`).join('\n')
+      : 'No unread emails.';
+  };
+
+  const isEmailIntent = (text: string) => /email|inbox|unread|gmail|outlook/i.test(text);
+
+  const getConnectedEmailProvider = () => {
+    if (emailTokens.google?.accessToken) return 'google';
+    if (emailTokens.microsoft?.accessToken) return 'microsoft';
+    return null;
+  };
+
+  const runInferenceDirect = async (userContent: string, context?: string | null) => {
+    const inferenceMessages = buildInferenceMessagesWithContext(userContent, context || undefined);
     const key = (apiKey || '').trim();
     const model = config.model;
 
@@ -404,6 +744,41 @@ export default function App() {
     setProviderStatus('idle');
   };
 
+  const handleEmailCheck = async () => {
+    const provider = getConnectedEmailProvider();
+    if (!provider) {
+      setEmailConnectStatus('error');
+      setEmailConnectMessage('Connect Gmail or Outlook first.');
+      return;
+    }
+
+    setEmailConnectStatus('connecting');
+    setEmailConnectMessage('Checking inbox...');
+    try {
+      const summary = await fetchEmailSummary(provider);
+      setEmailConnectStatus('connected');
+      setEmailConnectMessage(`${provider === 'google' ? 'Gmail' : 'Outlook'} connected.`);
+      const assistantMessage: Message = {
+        id: `${Date.now()}-email`,
+        role: 'assistant',
+        content: `Here are your unread emails:\n\n${summary}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      setEmailConnectStatus('error');
+      setEmailConnectMessage(error instanceof Error ? error.message : 'Failed to read inbox.');
+    }
+  };
+
+  const resolveEmailProvider = () => {
+    if (/@(outlook|hotmail|live)\.com$/i.test(emailAddress)) return 'microsoft';
+    if (/@(office365|onmicrosoft)\./i.test(emailAddress)) return 'microsoft';
+    if (/@.*(microsoft|outlook)/i.test(emailAddress)) return 'microsoft';
+    if (/@.*(gmail|googlemail)\.com$/i.test(emailAddress)) return 'google';
+    return 'google';
+  };
+
   const loadConfig = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/config`);
@@ -479,6 +854,16 @@ export default function App() {
       const parsedUrl = new URL(url);
       if (parsedUrl.protocol !== 'agentforge:') return;
 
+      if (parsedUrl.host === 'oauth') {
+        const provider = parsedUrl.pathname.replace('/', '');
+        const code = parsedUrl.searchParams.get('code');
+        const state = parsedUrl.searchParams.get('state');
+        if (provider && code && state) {
+          handleEmailOAuthCallback(provider as 'google' | 'microsoft', code, state);
+        }
+        return;
+      }
+
       const encodedConfig = parsedUrl.searchParams.get('config');
       if (!encodedConfig) return;
 
@@ -545,10 +930,18 @@ export default function App() {
     setIsLoading(true);
 
     try {
+      const provider = getConnectedEmailProvider();
+      const emailContext =
+        provider && isEmailIntent(userMessage.content)
+          ? await fetchEmailSummary(provider).catch(() => null)
+          : null;
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: await runInferenceDirect(userMessage.content),
+        content: await runInferenceDirect(
+          userMessage.content,
+          emailContext
+        ),
         timestamp: new Date(),
       };
 
@@ -860,6 +1253,57 @@ export default function App() {
               />
             </div>
           )}
+
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-white/40">Email Access</p>
+              <p className="text-xs text-white/60">Connect Gmail or Outlook inside this window.</p>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-[10px] uppercase tracking-wider text-white/40">Email address</label>
+              <input
+                type="email"
+                value={emailAddress}
+                onChange={(e) => setEmailAddress(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-violet-500/50 transition-colors"
+                placeholder="you@company.com"
+              />
+            </div>
+            <button
+              onClick={() => startEmailOAuth(resolveEmailProvider())}
+              className="w-full bg-white/5 hover:bg-white/10 text-white/70 font-medium py-2 rounded-lg transition-all text-xs active:scale-[0.98] disabled:opacity-50"
+              disabled={
+                emailConnectStatus === 'connecting' ||
+                !emailAddress.trim() ||
+                (resolveEmailProvider() === 'google'
+                  ? !emailSettings.googleClientId
+                  : !emailSettings.microsoftClientId)
+              }
+            >
+              Connect Email
+            </button>
+            <button
+              onClick={handleEmailCheck}
+              className="w-full bg-white/10 hover:bg-white/20 text-white/80 font-medium py-2 rounded-lg transition-all text-xs active:scale-[0.98]"
+            >
+              Check Inbox
+            </button>
+            {emailConnectMessage && (
+              <div className={clsx(
+                'text-xs px-3 py-2 rounded-lg border',
+                emailConnectStatus === 'connected'
+                  ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10'
+                  : emailConnectStatus === 'error'
+                    ? 'text-red-300 border-red-500/30 bg-red-500/10'
+                    : 'text-white/60 border-white/10 bg-white/5'
+              )}>
+                {emailConnectMessage}
+              </div>
+            )}
+            <p className="text-[10px] text-white/40">
+              Built-in OAuth. Redirect URIs: agentforge://oauth/google and agentforge://oauth/microsoft
+            </p>
+          </div>
 
           <div className="flex gap-2">
             <button
