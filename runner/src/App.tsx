@@ -386,6 +386,24 @@ export default function App() {
     }
   };
 
+  const refreshSettingsFromStorage = () => {
+    const stored = readStoredSettings();
+    const provider = stored.provider ?? config.provider;
+    const storedModel = stored.models?.[provider] || stored.model || config.model;
+    const storedKey = stored.apiKeys?.[provider] || stored.apiKey || '';
+    const nextModel = resolveProviderModel(provider, storedModel, config.model);
+
+    setConfig((prev) => ({
+      ...prev,
+      provider,
+      model: nextModel,
+    }));
+    setApiKey(storedKey);
+    setTestStatus('idle');
+    setTestMessage('');
+    setProviderStatus('idle');
+  };
+
   const loadConfig = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/config`);
@@ -849,6 +867,12 @@ export default function App() {
               className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-medium py-2 rounded-lg transition-all text-sm active:scale-[0.98]"
             >
               Save Changes
+            </button>
+            <button
+              onClick={refreshSettingsFromStorage}
+              className="px-3 bg-white/5 hover:bg-white/10 text-white/70 font-medium py-2 rounded-lg transition-all text-sm active:scale-[0.98]"
+            >
+              Refresh
             </button>
             <button
               onClick={testProviderConnection}
