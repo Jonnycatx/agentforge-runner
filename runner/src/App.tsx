@@ -3,6 +3,8 @@ import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import { WebviewWindow } from '@tauri-apps/api/window';
+import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import { Send, Settings, User, Loader2, Sparkles, X, Zap, Volume2, VolumeX } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -44,6 +46,32 @@ const SETTINGS_STORAGE_KEY = 'agentforge:settings';
 const EMAIL_OAUTH_TOKENS_KEY = 'agentforge:email-oauth-tokens';
 const DEFAULT_GOOGLE_CLIENT_ID = import.meta.env.VITE_EMAIL_GOOGLE_CLIENT_ID || '';
 const DEFAULT_MICROSOFT_CLIENT_ID = import.meta.env.VITE_EMAIL_MICROSOFT_CLIENT_ID || '';
+const BRAIN_PATH_STORAGE_KEY = 'agentforge:brain-path';
+const APP_SETTINGS_STORAGE_KEY = 'agentforge:app-settings';
+const MCP_SETTINGS_STORAGE_KEY = 'agentforge:mcp-settings';
+const MCP_SCAN_PORTS = [1337, 8787, 3001, 5555, 7777];
+
+const DEFAULT_MCP_SERVERS = [
+  {
+    id: 'osaurus',
+    name: 'Osaurus MCP',
+    url: 'http://127.0.0.1:1337',
+    description: 'Local AI runtime with MCP tools',
+  },
+  {
+    id: 'local-mcp',
+    name: 'Local MCP',
+    url: 'http://127.0.0.1:8787',
+    description: 'Generic local MCP server',
+  },
+];
+
+const DEFAULT_MCP_TOOLS: Record<string, boolean> = {
+  googleDrive: false,
+  localFiles: true,
+  browser: true,
+  terminal: false,
+};
 
 type StoredSettings = {
   provider?: string;
@@ -59,6 +87,27 @@ type EmailToken = {
   accessToken: string;
   refreshToken?: string;
   expiresAt?: number;
+};
+
+type McpServer = {
+  id: string;
+  name: string;
+  url: string;
+  description?: string;
+};
+
+type McpSettings = {
+  servers: Record<string, { enabled: boolean; url: string }>;
+  tools: Record<string, boolean>;
+  customUrl?: string;
+};
+
+type AppSettings = {
+  runInBackground: boolean;
+};
+
+const DEFAULT_APP_SETTINGS: AppSettings = {
+  runInBackground: false,
 };
 
 const PROVIDER_MODELS: Record<string, string[]> = {
@@ -99,9 +148,24 @@ export default function App() {
   const [emailConnectStatus, setEmailConnectStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [emailConnectMessage, setEmailConnectMessage] = useState('');
   const [emailAddress, setEmailAddress] = useState('');
+  const [brainPath, setBrainPath] = useState('');
+  const [brainStatus, setBrainStatus] = useState<'idle' | 'saving' | 'ready' | 'error'>('idle');
+  const [brainMessage, setBrainMessage] = useState('');
+  const [mcpServers, setMcpServers] = useState<McpServer[]>(DEFAULT_MCP_SERVERS);
+  const [mcpSettings, setMcpSettings] = useState<McpSettings>({
+    servers: {},
+    tools: DEFAULT_MCP_TOOLS,
+  });
+  const [mcpStatus, setMcpStatus] = useState<Record<string, 'unknown' | 'online' | 'offline'>>({});
+  const [customMcpUrl, setCustomMcpUrl] = useState('');
+  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [runInBackground, setRunInBackground] = useState(false);
   const promptedMissingKeyRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const conversationIdRef = useRef<string>(crypto.randomUUID());
+  const saveTimerRef = useRef<number | null>(null);
+  const indexedMessagesRef = useRef<Set<string>>(new Set());
 
   const missingApiKey = config.provider !== 'ollama' && !(apiKey || '').trim();
 
@@ -149,6 +213,54 @@ export default function App() {
     }
   };
 
+  const readAppSettings = (): AppSettings => {
+    try {
+      const raw = localStorage.getItem(APP_SETTINGS_STORAGE_KEY);
+      if (!raw) return DEFAULT_APP_SETTINGS;
+      const parsed = JSON.parse(raw) as Partial<AppSettings>;
+      return {
+        runInBackground: typeof parsed.runInBackground === 'boolean'
+          ? parsed.runInBackground
+          : DEFAULT_APP_SETTINGS.runInBackground,
+      };
+    } catch {
+      return DEFAULT_APP_SETTINGS;
+    }
+  };
+
+  const writeAppSettings = (next: AppSettings) => {
+    try {
+      localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const readMcpSettings = (): McpSettings => {
+    try {
+      const raw = localStorage.getItem(MCP_SETTINGS_STORAGE_KEY);
+      if (!raw) {
+        return { servers: {}, tools: DEFAULT_MCP_TOOLS };
+      }
+      const parsed = JSON.parse(raw) as McpSettings;
+      return {
+        servers: parsed.servers || {},
+        tools: parsed.tools || DEFAULT_MCP_TOOLS,
+        customUrl: parsed.customUrl,
+      };
+    } catch {
+      return { servers: {}, tools: DEFAULT_MCP_TOOLS };
+    }
+  };
+
+  const writeMcpSettings = (next: McpSettings) => {
+    try {
+      localStorage.setItem(MCP_SETTINGS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
   const mergeConfigWithSettings = (incoming: Partial<AgentConfig>): AgentConfig => {
     const stored = readStoredSettings();
     const resolvedProvider = incoming.provider ?? stored.provider ?? DEFAULT_CONFIG.provider;
@@ -176,6 +288,124 @@ export default function App() {
     return merged;
   };
 
+  const checkMcpHealth = async (url: string) => {
+    const healthUrl = url.endsWith('/') ? `${url}mcp/health` : `${url}/mcp/health`;
+    try {
+      const response = await fetch(healthUrl, { signal: AbortSignal.timeout(1500) });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const refreshMcpStatus = async (servers: McpServer[], settings: McpSettings) => {
+    const nextStatus: Record<string, 'unknown' | 'online' | 'offline'> = {};
+    await Promise.all(
+      servers.map(async (server) => {
+        if (!settings.servers?.[server.id]?.enabled) {
+          nextStatus[server.id] = 'unknown';
+          return;
+        }
+        const ok = await checkMcpHealth(server.url);
+        nextStatus[server.id] = ok ? 'online' : 'offline';
+      })
+    );
+    setMcpStatus(nextStatus);
+  };
+
+  const buildMcpServerList = async (settings: McpSettings) => {
+    const baseServers = [...DEFAULT_MCP_SERVERS];
+    const customUrl = (settings.customUrl || '').trim();
+    if (customUrl) {
+      baseServers.push({
+        id: 'custom',
+        name: 'Custom MCP',
+        url: customUrl,
+        description: 'Custom MCP endpoint',
+      });
+    }
+
+    const detected: McpServer[] = [];
+    await Promise.all(
+      MCP_SCAN_PORTS.map(async (port) => {
+        const url = `http://127.0.0.1:${port}`;
+        if (baseServers.some((server) => server.url === url)) return;
+        const ok = await checkMcpHealth(url);
+        if (ok) {
+          detected.push({
+            id: `auto-${port}`,
+            name: `Detected MCP :${port}`,
+            url,
+            description: 'Auto-detected local MCP server',
+          });
+        }
+      })
+    );
+
+    return [...baseServers, ...detected];
+  };
+
+  const updateMcpSettings = (next: McpSettings) => {
+    setMcpSettings(next);
+    writeMcpSettings(next);
+    invoke('set_mcp_settings', { contents: JSON.stringify(next) }).catch((error) => {
+      console.warn('Failed to persist MCP settings', error);
+    });
+  };
+
+  const applyAppSettings = (next: AppSettings) => {
+    setAppSettings(next);
+    writeAppSettings(next);
+    invoke('set_run_in_background', { enabled: next.runInBackground }).catch((error) => {
+      console.warn('Failed to update background setting', error);
+    });
+  };
+
+  const toggleMcpServer = (server: McpServer) => {
+    const current = mcpSettings.servers?.[server.id]?.enabled || false;
+    const nextSettings: McpSettings = {
+      ...mcpSettings,
+      servers: {
+        ...mcpSettings.servers,
+        [server.id]: { enabled: !current, url: server.url },
+      },
+    };
+    updateMcpSettings(nextSettings);
+    refreshMcpStatus(mcpServers, nextSettings);
+  };
+
+  const toggleMcpTool = (toolKey: string) => {
+    const nextSettings: McpSettings = {
+      ...mcpSettings,
+      tools: {
+        ...mcpSettings.tools,
+        [toolKey]: !mcpSettings.tools?.[toolKey],
+      },
+    };
+    updateMcpSettings(nextSettings);
+  };
+
+  const refreshMcpServers = async (settings: McpSettings = mcpSettings) => {
+    const servers = await buildMcpServerList(settings);
+    setMcpServers(servers);
+    refreshMcpStatus(servers, settings);
+  };
+
+  const saveCustomMcpUrl = () => {
+    const trimmed = customMcpUrl.trim();
+    const nextSettings: McpSettings = {
+      ...mcpSettings,
+      customUrl: trimmed || undefined,
+    };
+    updateMcpSettings(nextSettings);
+    refreshMcpServers(nextSettings);
+  };
+
+  const toggleRunInBackground = () => {
+    const next = { ...appSettings, runInBackground: !appSettings.runInBackground };
+    applyAppSettings(next);
+  };
+
   useEffect(() => {
     loadConfig();
     setEmailSettings({
@@ -183,6 +413,46 @@ export default function App() {
       microsoftClientId: DEFAULT_MICROSOFT_CLIENT_ID,
     });
     setEmailTokens(readEmailTokens());
+    const storedAppSettings = readAppSettings();
+    setAppSettings(storedAppSettings);
+    invoke('set_run_in_background', { enabled: storedAppSettings.runInBackground }).catch(() => null);
+    invoke<string | null>('get_secret', { key: 'emailToken:google' })
+      .then((value) => {
+        if (!value) return;
+        const token = JSON.parse(value) as EmailToken;
+        setEmailTokens((prev) => {
+          const next = { ...prev, google: token };
+          writeEmailTokens(next);
+          return next;
+        });
+      })
+      .catch(() => null);
+    invoke<string | null>('get_secret', { key: 'emailToken:microsoft' })
+      .then((value) => {
+        if (!value) return;
+        const token = JSON.parse(value) as EmailToken;
+        setEmailTokens((prev) => {
+          const next = { ...prev, microsoft: token };
+          writeEmailTokens(next);
+          return next;
+        });
+      })
+      .catch(() => null);
+    const storedMcpSettings = readMcpSettings();
+    setMcpSettings(storedMcpSettings);
+    setCustomMcpUrl(storedMcpSettings.customUrl || '');
+    updateMcpSettings(storedMcpSettings);
+    refreshMcpServers(storedMcpSettings);
+    try {
+      const storedPath = localStorage.getItem(BRAIN_PATH_STORAGE_KEY);
+      if (storedPath) {
+        setBrainPath(storedPath);
+        setBrainStatus('ready');
+        setBrainMessage('Brain folder connected.');
+      }
+    } catch {
+      // Ignore storage errors
+    }
   }, []);
 
   useEffect(() => {
@@ -191,6 +461,12 @@ export default function App() {
       promptedMissingKeyRef.current = true;
     }
   }, [missingApiKey, showSettings]);
+
+  useEffect(() => {
+    if (config.provider !== 'ollama' && !(apiKey || '').trim()) {
+      loadKeychainApiKey(config.provider);
+    }
+  }, [config.provider]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -522,6 +798,10 @@ export default function App() {
 
       setEmailTokens(nextTokens);
       writeEmailTokens(nextTokens);
+      await invoke('set_secret', {
+        key: `emailToken:${provider}`,
+        value: JSON.stringify(nextTokens[provider]),
+      });
       setEmailConnectStatus('connected');
       setEmailConnectMessage(`${provider === 'google' ? 'Gmail' : 'Outlook'} connected.`);
       clearPendingOAuth();
@@ -629,6 +909,18 @@ export default function App() {
     if (emailTokens.google?.accessToken) return 'google';
     if (emailTokens.microsoft?.accessToken) return 'microsoft';
     return null;
+  };
+
+  const loadKeychainApiKey = async (provider: string) => {
+    if (provider === 'ollama') return;
+    try {
+      const value = await invoke<string | null>('get_secret', { key: `apiKey:${provider}` });
+      if (value && value.trim()) {
+        setApiKey(value);
+      }
+    } catch {
+      // Ignore keychain errors
+    }
   };
 
   const runInferenceDirect = async (userContent: string, context?: string | null) => {
@@ -779,6 +1071,118 @@ export default function App() {
     return 'google';
   };
 
+  const selectBrainFolder = async () => {
+    try {
+      const selection = await open({
+        directory: true,
+        multiple: false,
+        title: 'Choose your Brain folder',
+      });
+
+      if (!selection) return;
+      const path = Array.isArray(selection) ? selection[0] : selection;
+      if (!path) return;
+
+      setBrainPath(path);
+      localStorage.setItem(BRAIN_PATH_STORAGE_KEY, path);
+      setBrainStatus('ready');
+      setBrainMessage('Brain folder connected.');
+    } catch (error) {
+      setBrainStatus('error');
+      setBrainMessage(error instanceof Error ? error.message : 'Failed to select folder.');
+    }
+  };
+
+  const saveConversationToBrain = async () => {
+    if (!brainPath || messages.length === 0) return;
+    setBrainStatus('saving');
+
+    const now = new Date();
+    const dateFolder = now.toISOString().slice(0, 10);
+    const fileStamp = now.toISOString().replace(/[:.]/g, '-');
+    const startedAt = messages[0]?.timestamp ? new Date(messages[0].timestamp).toISOString() : now.toISOString();
+    const payload = {
+      conversationId: conversationIdRef.current,
+      agent: {
+        name: config.name,
+        goal: config.goal,
+        personality: config.personality,
+        provider: config.provider,
+        model: config.model,
+      },
+      startedAt,
+      updatedAt: now.toISOString(),
+      messages: messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        timestamp: new Date(message.timestamp).toISOString(),
+      })),
+    };
+
+    try {
+      await invoke('save_brain_conversation', {
+        brainPath,
+        agentName: config.name,
+        dateFolder,
+        fileName: `${fileStamp}.json`,
+        contents: JSON.stringify(payload, null, 2),
+      });
+      setBrainStatus('ready');
+      setBrainMessage('Saved to brain.');
+    } catch (error) {
+      setBrainStatus('error');
+      setBrainMessage(error instanceof Error ? error.message : 'Failed to save brain file.');
+    }
+  };
+
+  const appendMemoryEntry = async (message: Message) => {
+    if (!brainPath) return;
+    if (message.role === 'system') return;
+    if (indexedMessagesRef.current.has(message.id)) return;
+
+    const entry = {
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      timestamp: new Date(message.timestamp).toISOString(),
+      conversationId: conversationIdRef.current,
+    };
+
+    try {
+      await invoke('append_memory_entry', {
+        brainPath,
+        agentName: config.name,
+        entry: JSON.stringify(entry),
+      });
+      indexedMessagesRef.current.add(message.id);
+    } catch (error) {
+      console.warn('Failed to index memory entry', error);
+    }
+  };
+
+  const fetchMemoryContext = async (query: string) => {
+    if (!brainPath || !query.trim()) return null;
+    try {
+      const matches = await invoke<Array<{ content: string; role: string; timestamp: string }>>(
+        'query_memory_entries',
+        {
+          brainPath,
+          agentName: config.name,
+          query,
+          limit: 5,
+        }
+      );
+
+      if (!matches?.length) return null;
+      const lines = matches.map((match) => `- (${match.role}) ${match.content}`);
+      return `Relevant memories:\n${lines.join('\n')}`;
+    } catch (error) {
+      console.warn('Failed to query memory entries', error);
+      return null;
+    }
+  };
+
   const loadConfig = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/config`);
@@ -803,6 +1207,7 @@ export default function App() {
         });
         // Add welcome message
         if (data.name) {
+          conversationIdRef.current = crypto.randomUUID();
           setMessages([{
             id: '1',
             role: 'assistant',
@@ -838,6 +1243,7 @@ export default function App() {
         },
         apiKey: loadedConfig.apiKey || undefined,
       });
+      conversationIdRef.current = crypto.randomUUID();
       setMessages([{
         id: '1',
         role: 'assistant',
@@ -915,6 +1321,29 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!brainPath || messages.length === 0) return;
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = window.setTimeout(() => {
+      saveConversationToBrain();
+    }, 800);
+
+    return () => {
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [messages, brainPath, config.name, config.goal, config.personality, config.provider, config.model]);
+
+  useEffect(() => {
+    if (!brainPath || messages.length === 0) return;
+    messages.forEach((message) => {
+      appendMemoryEntry(message);
+    });
+  }, [messages, brainPath]);
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -935,12 +1364,14 @@ export default function App() {
         provider && isEmailIntent(userMessage.content)
           ? await fetchEmailSummary(provider).catch(() => null)
           : null;
+      const memoryContext = await fetchMemoryContext(userMessage.content);
+      const combinedContext = [emailContext, memoryContext].filter(Boolean).join('\n\n');
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: await runInferenceDirect(
           userMessage.content,
-          emailContext
+          combinedContext || undefined
         ),
         timestamp: new Date(),
       };
@@ -983,6 +1414,15 @@ export default function App() {
     const nextModel = resolveProviderModel(provider, storedModel, config.model);
     setConfig({ ...config, provider, model: nextModel });
     setApiKey(storedKey);
+    if (provider !== 'ollama') {
+      invoke<string | null>('get_secret', { key: `apiKey:${provider}` })
+        .then((value) => {
+          if (value && value.trim()) {
+            setApiKey(value);
+          }
+        })
+        .catch(() => null);
+    }
     setTestStatus('idle');
     setTestMessage('');
   };
@@ -1011,6 +1451,13 @@ export default function App() {
         },
         apiKey,
       });
+      if (updatedConfig.provider !== 'ollama') {
+        if (apiKey) {
+          await invoke('set_secret', { key: `apiKey:${updatedConfig.provider}`, value: apiKey });
+        } else {
+          await invoke('delete_secret', { key: `apiKey:${updatedConfig.provider}` });
+        }
+      }
       await fetch(`${BACKEND_URL}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1130,6 +1577,12 @@ export default function App() {
   const modelSelectValue = modelIsCustom
     ? '__custom__'
     : (config.model || providerModels[0] || '');
+  const mcpToolEntries = [
+    { key: 'googleDrive', label: 'Google Drive' },
+    { key: 'localFiles', label: 'Local Files' },
+    { key: 'browser', label: 'Browser' },
+    { key: 'terminal', label: 'Terminal' },
+  ];
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] text-white overflow-hidden">
@@ -1253,6 +1706,155 @@ export default function App() {
               />
             </div>
           )}
+
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-white/40">Brain Folder</p>
+              <p className="text-xs text-white/60">
+                Pick a folder on your desktop or USB drive. Everything is saved there by date.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={selectBrainFolder}
+                className="w-full bg-white/5 hover:bg-white/10 text-white/70 font-medium py-2 rounded-lg transition-all text-xs active:scale-[0.98]"
+              >
+                Choose Brain Folder
+              </button>
+              {brainPath && (
+                <div className="text-[10px] text-white/50 break-all">
+                  {brainPath}
+                </div>
+              )}
+              {brainMessage && (
+                <div className={clsx(
+                  'text-xs px-3 py-2 rounded-lg border',
+                  brainStatus === 'ready'
+                    ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10'
+                    : brainStatus === 'error'
+                      ? 'text-red-300 border-red-500/30 bg-red-500/10'
+                      : 'text-white/60 border-white/10 bg-white/5'
+                )}>
+                  {brainMessage}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-white/40">Background Mode</p>
+              <p className="text-xs text-white/60">
+                Keep the agent running when you close the window.
+              </p>
+            </div>
+            <button
+              onClick={toggleRunInBackground}
+              className={clsx(
+                'w-full py-2 rounded-lg text-xs font-medium transition-all',
+                appSettings.runInBackground
+                  ? 'bg-white/15 text-white'
+                  : 'bg-white/5 text-white/60 hover:bg-white/10'
+              )}
+            >
+              {appSettings.runInBackground ? 'Running in background' : 'Run in background'}
+            </button>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-white/40">Tool Integrations (MCP)</p>
+                <p className="text-xs text-white/60">Auto-detect local MCP servers and toggle tools.</p>
+              </div>
+              <button
+                onClick={() => refreshMcpServers()}
+                className="px-3 bg-white/5 hover:bg-white/10 text-white/70 font-medium py-1.5 rounded-lg transition-all text-xs active:scale-[0.98]"
+              >
+                Refresh
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {mcpServers.map((server) => {
+                const enabled = mcpSettings.servers?.[server.id]?.enabled || false;
+                const status = enabled ? (mcpStatus[server.id] || 'offline') : 'unknown';
+                return (
+                  <div
+                    key={server.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+                  >
+                    <div>
+                      <div className="text-xs text-white/80 flex items-center gap-2">
+                        {server.name}
+                        {server.id.startsWith('auto-') && (
+                          <span className="text-[9px] text-white/40">Auto</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-white/40">{server.url}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={clsx(
+                          'text-[10px] px-2 py-1 rounded-full',
+                          !enabled
+                            ? 'text-white/40 bg-white/5'
+                            : status === 'online'
+                              ? 'text-emerald-300 bg-emerald-500/10'
+                              : 'text-red-300 bg-red-500/10'
+                        )}
+                      >
+                        {!enabled ? 'Disabled' : status === 'online' ? 'Online' : 'Offline'}
+                      </span>
+                      <button
+                        onClick={() => toggleMcpServer(server)}
+                        className="px-2 py-1 rounded-lg text-[10px] bg-white/5 hover:bg-white/10 text-white/70 transition-all"
+                      >
+                        {enabled ? 'Disable' : 'Enable'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-[10px] uppercase tracking-wider text-white/40">Custom MCP URL (optional)</label>
+              <input
+                type="text"
+                value={customMcpUrl}
+                onChange={(e) => setCustomMcpUrl(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-violet-500/50 transition-colors"
+                placeholder="http://127.0.0.1:9000"
+              />
+              <button
+                onClick={saveCustomMcpUrl}
+                className="w-full bg-white/5 hover:bg-white/10 text-white/70 font-medium py-2 rounded-lg transition-all text-xs active:scale-[0.98]"
+              >
+                Save Custom MCP
+              </button>
+            </div>
+
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-white/40 mb-2">Tool Toggles</p>
+              <div className="grid grid-cols-2 gap-2">
+                {mcpToolEntries.map((tool) => (
+                  <button
+                    key={tool.key}
+                    onClick={() => toggleMcpTool(tool.key)}
+                    className={clsx(
+                      'py-2 rounded-lg text-xs font-medium transition-all',
+                      mcpSettings.tools?.[tool.key]
+                        ? 'bg-white/15 text-white'
+                        : 'bg-white/5 text-white/60 hover:bg-white/10'
+                    )}
+                  >
+                    {tool.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
 
           <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
             <div>
