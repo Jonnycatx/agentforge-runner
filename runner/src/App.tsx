@@ -44,11 +44,20 @@ const SETTINGS_STORAGE_KEY = 'agentforge:settings';
 type StoredSettings = {
   provider?: string;
   model?: string;
+  models?: Record<string, string>;
   temperature?: number;
   apiKey?: string;
   apiKeys?: Record<string, string>;
 };
 
+const PROVIDER_MODELS: Record<string, string[]> = {
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'o1', 'o1-mini'],
+  anthropic: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
+  groq: ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'mixtral-8x7b-32768'],
+  google: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash'],
+  xai: ['grok-4', 'grok-4-latest', 'grok-3', 'grok-3-latest', 'grok-2-latest'],
+  ollama: ['llama3.2', 'llama3.2:1b', 'llama3.1', 'qwen2.5', 'deepseek-r1'],
+};
 // Avatar gradient presets
 const AVATAR_GRADIENTS = [
   'from-violet-500 to-purple-600',
@@ -85,6 +94,7 @@ export default function App() {
       return {
         provider: typeof parsed.provider === 'string' ? parsed.provider : undefined,
         model: typeof parsed.model === 'string' ? parsed.model : undefined,
+        models: typeof parsed.models === 'object' && parsed.models ? parsed.models : undefined,
         temperature: typeof parsed.temperature === 'number' ? parsed.temperature : undefined,
         apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : undefined,
         apiKeys: typeof parsed.apiKeys === 'object' && parsed.apiKeys ? parsed.apiKeys : undefined,
@@ -105,6 +115,7 @@ export default function App() {
   const mergeConfigWithSettings = (incoming: Partial<AgentConfig>): AgentConfig => {
     const stored = readStoredSettings();
     const resolvedProvider = incoming.provider ?? stored.provider ?? DEFAULT_CONFIG.provider;
+    const storedModel = stored.models?.[resolvedProvider] || stored.model;
     const storedApiKey =
       stored.apiKeys?.[resolvedProvider] ||
       stored.apiKey ||
@@ -115,7 +126,7 @@ export default function App() {
       ...DEFAULT_CONFIG,
       ...incoming,
       provider: resolvedProvider,
-      model: incoming.model ?? stored.model ?? DEFAULT_CONFIG.model,
+      model: incoming.model ?? storedModel ?? DEFAULT_CONFIG.model,
       temperature: incoming.temperature ?? stored.temperature ?? DEFAULT_CONFIG.temperature,
       apiKey: mergedApiKey,
       tools: incoming.tools ?? DEFAULT_CONFIG.tools,
@@ -213,6 +224,10 @@ export default function App() {
           provider: loadedConfig.provider,
           model: loadedConfig.model,
           temperature: loadedConfig.temperature,
+          models: {
+            ...(readStoredSettings().models || {}),
+            ...(loadedConfig.model ? { [loadedConfig.provider]: loadedConfig.model } : {}),
+          },
           apiKeys: {
             ...(readStoredSettings().apiKeys || {}),
             ...(loadedConfig.apiKey ? { [loadedConfig.provider]: loadedConfig.apiKey } : {}),
@@ -246,6 +261,10 @@ export default function App() {
         provider: loadedConfig.provider,
         model: loadedConfig.model,
         temperature: loadedConfig.temperature,
+        models: {
+          ...(readStoredSettings().models || {}),
+          ...(loadedConfig.model ? { [loadedConfig.provider]: loadedConfig.model } : {}),
+        },
         apiKeys: {
           ...(readStoredSettings().apiKeys || {}),
           ...(loadedConfig.apiKey ? { [loadedConfig.provider]: loadedConfig.apiKey } : {}),
@@ -360,7 +379,10 @@ export default function App() {
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Connection failed';
+      const rawError = error instanceof Error ? error.message : 'Connection failed';
+      const errorMsg = rawError.includes('CERTIFICATE_VERIFY_FAILED')
+        ? 'SSL certificates are missing. Run: /Applications/Python 3.x/Install Certificates.command'
+        : rawError;
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -373,10 +395,21 @@ export default function App() {
     }
   };
 
+  const getProviderModels = (provider: string) => PROVIDER_MODELS[provider] || [];
+
+  const resolveProviderModel = (provider: string, storedModel?: string, currentModel?: string) => {
+    const models = getProviderModels(provider);
+    if (storedModel) return storedModel;
+    if (currentModel && (models.length === 0 || models.includes(currentModel))) return currentModel;
+    return models[0] || DEFAULT_CONFIG.model;
+  };
+
   const handleProviderChange = (provider: string) => {
     const stored = readStoredSettings();
     const storedKey = stored.apiKeys?.[provider] || '';
-    setConfig({ ...config, provider });
+    const storedModel = stored.models?.[provider];
+    const nextModel = resolveProviderModel(provider, storedModel, config.model);
+    setConfig({ ...config, provider, model: nextModel });
     setApiKey(storedKey);
     setTestStatus('idle');
     setTestMessage('');
@@ -396,6 +429,10 @@ export default function App() {
         provider: updatedConfig.provider,
         model: updatedConfig.model,
         temperature: updatedConfig.temperature,
+        models: {
+          ...(readStoredSettings().models || {}),
+          ...(updatedConfig.model ? { [updatedConfig.provider]: updatedConfig.model } : {}),
+        },
         apiKeys: {
           ...(readStoredSettings().apiKeys || {}),
           ...(apiKey ? { [updatedConfig.provider]: apiKey } : {}),
@@ -516,6 +553,12 @@ export default function App() {
     </div>
   );
 
+  const providerModels = getProviderModels(config.provider);
+  const modelIsCustom = providerModels.length > 0 && !providerModels.includes(config.model);
+  const modelSelectValue = modelIsCustom
+    ? '__custom__'
+    : (config.model || providerModels[0] || '');
+
   return (
     <div className="h-screen flex flex-col bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] text-white overflow-hidden">
       {/* Native-style draggable title bar */}
@@ -584,13 +627,45 @@ export default function App() {
             </div>
             <div>
               <label className="block text-[10px] uppercase tracking-wider text-white/40 mb-1.5">Model</label>
-              <input
-                type="text"
-                value={config.model}
-                onChange={(e) => setConfig({ ...config, model: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 transition-colors"
-                placeholder="llama3.2, gpt-4o..."
-              />
+              {providerModels.length > 0 ? (
+                <>
+                  <select
+                    value={modelSelectValue}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setConfig({ ...config, model: '' });
+                        return;
+                      }
+                      setConfig({ ...config, model: e.target.value });
+                    }}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 transition-colors"
+                  >
+                    {providerModels.map((model) => (
+                      <option key={model} value={model}>
+                        {model}
+                      </option>
+                    ))}
+                    <option value="__custom__">Custom model...</option>
+                  </select>
+                  {modelIsCustom && (
+                    <input
+                      type="text"
+                      value={config.model}
+                      onChange={(e) => setConfig({ ...config, model: e.target.value })}
+                      className="mt-2 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 transition-colors"
+                      placeholder="Enter custom model id"
+                    />
+                  )}
+                </>
+              ) : (
+                <input
+                  type="text"
+                  value={config.model}
+                  onChange={(e) => setConfig({ ...config, model: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 transition-colors"
+                  placeholder="Model id"
+                />
+              )}
             </div>
           </div>
 
