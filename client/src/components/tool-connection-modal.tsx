@@ -75,6 +75,7 @@ export function ToolConnectionModal({
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState<"google" | "microsoft">("google");
   const { toast } = useToast();
 
   const IconComponent = getIconComponent(tool.icon);
@@ -161,12 +162,52 @@ export function ToolConnectionModal({
     }
   };
 
-  const handleOAuth = () => {
-    // TODO: Implement OAuth flow
-    toast({
-      title: "Coming Soon",
-      description: "OAuth authentication will be available soon.",
-    });
+  const handleOAuth = async () => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      const provider = tool.category === "email" ? oauthProvider : (tool.authConfig?.provider || "oauth");
+      const authUrl = `/api/oauth/${provider}/start?toolId=${encodeURIComponent(tool.id)}`;
+      const popup = window.open(authUrl, "agentforge-oauth", "width=520,height=720");
+
+      if (!popup) {
+        throw new Error("Popup blocked. Please allow popups and try again.");
+      }
+
+      const pollInterval = window.setInterval(async () => {
+        try {
+          const response = await fetch(`/api/tools/${tool.id}/auth/status`, {
+            credentials: "include",
+          });
+          if (!response.ok) return;
+          const status = await response.json();
+          if (status?.isConnected) {
+            window.clearInterval(pollInterval);
+            popup.close();
+            setSuccess(true);
+            toast({
+              title: "Connected!",
+              description: `${tool.name} is now connected and ready to use.`,
+            });
+            setTimeout(() => {
+              onSuccess();
+              onOpenChange(false);
+            }, 800);
+          }
+        } catch {
+          // Ignore polling errors
+        }
+      }, 1200);
+
+      window.setTimeout(() => {
+        window.clearInterval(pollInterval);
+      }, 120000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "OAuth connection failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -204,10 +245,39 @@ export function ToolConnectionModal({
                 Click the button below to securely connect your {tool.authConfig?.provider || "account"}.
               </AlertDescription>
             </Alert>
+            {tool.category === "email" && (
+              <div className="space-y-2">
+                <Label>Provider</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={oauthProvider === "google" ? "default" : "outline"}
+                    className="flex-1"
+                    onClick={() => setOauthProvider("google")}
+                  >
+                    Gmail
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={oauthProvider === "microsoft" ? "default" : "outline"}
+                    className="flex-1"
+                    onClick={() => setOauthProvider("microsoft")}
+                  >
+                    Outlook
+                  </Button>
+                </div>
+              </div>
+            )}
             <Button onClick={handleOAuth} className="w-full" size="lg">
               <Lock className="w-4 h-4 mr-2" />
-              Sign in with {tool.authConfig?.provider || "OAuth"}
+              {loading ? "Connecting..." : "Connect account"}
             </Button>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 py-4">

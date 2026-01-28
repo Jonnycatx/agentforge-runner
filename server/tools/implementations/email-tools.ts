@@ -6,6 +6,124 @@
 import { registerExecutor } from "../executor";
 import { type ToolExecutionResult } from "@shared/schema";
 
+type OAuthProvider = "google" | "microsoft";
+
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const MICROSOFT_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+
+async function refreshGoogleToken(refreshToken: string): Promise<any> {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error("Google OAuth client not configured.");
+  }
+
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to refresh Google token.");
+  }
+
+  return response.json();
+}
+
+async function refreshMicrosoftToken(refreshToken: string): Promise<any> {
+  const clientId = process.env.MICROSOFT_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.MICROSOFT_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error("Microsoft OAuth client not configured.");
+  }
+
+  const response = await fetch(MICROSOFT_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+      scope: "offline_access Mail.Read Mail.ReadWrite Mail.Send",
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to refresh Microsoft token.");
+  }
+
+  return response.json();
+}
+
+async function getAccessToken(credentials?: Record<string, any>): Promise<{ provider: OAuthProvider; accessToken: string }> {
+  if (!credentials) {
+    throw new Error("Email credentials not found. Please connect your email account.");
+  }
+
+  const provider = (credentials.provider || "google") as OAuthProvider;
+  const accessToken = credentials.accessToken as string | undefined;
+  const refreshToken = credentials.refreshToken as string | undefined;
+  const expiresAt = typeof credentials.expiresAt === "number" ? credentials.expiresAt : undefined;
+
+  if (!accessToken && !refreshToken) {
+    throw new Error("Missing access token. Please reconnect your email account.");
+  }
+
+  if (expiresAt && Date.now() > expiresAt - 60000 && refreshToken) {
+    if (provider === "google") {
+      const refreshed = await refreshGoogleToken(refreshToken);
+      return {
+        provider,
+        accessToken: refreshed.access_token,
+      };
+    }
+    if (provider === "microsoft") {
+      const refreshed = await refreshMicrosoftToken(refreshToken);
+      return {
+        provider,
+        accessToken: refreshed.access_token,
+      };
+    }
+  }
+
+  if (!accessToken) {
+    throw new Error("Access token missing. Please reconnect your email account.");
+  }
+
+  return { provider, accessToken };
+}
+
+async function graphRequest(
+  endpoint: string,
+  accessToken: string,
+  options: RequestInit = {}
+): Promise<any> {
+  const response = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `Outlook API error: ${response.status}`);
+  }
+
+  return response.json().catch(() => ({}));
+}
+
 // Gmail API helpers
 async function gmailRequest(
   endpoint: string,
@@ -52,20 +170,64 @@ async function executeEmailRead(
   const { query, maxResults = 20, includeAttachments = false } = input;
   const logs: string[] = [];
 
-  const accessToken = credentials?.accessToken;
-  if (!accessToken) {
+  let provider: OAuthProvider = "google";
+  let accessToken = "";
+  try {
+    const token = await getAccessToken(credentials);
+    provider = token.provider;
+    accessToken = token.accessToken;
+  } catch (error) {
     return {
       success: false,
-      error: "Gmail access token required. Please connect your Gmail account.",
+      error: error instanceof Error ? error.message : "Email access token required.",
       executionTime: 0,
-      logs: ["Error: No access token"],
+      logs: ["Error: Missing access token"],
     };
   }
 
   try {
     logs.push(`Fetching emails${query ? ` matching: ${query}` : ""}`);
 
-    // List messages
+    if (provider === "microsoft") {
+      const params = new URLSearchParams({
+        $top: String(maxResults),
+        $select: "id,subject,bodyPreview,from,toRecipients,receivedDateTime,conversationId",
+      });
+      if (query) {
+        params.set("$search", `"${query}"`);
+      }
+      const response = await graphRequest(`/me/messages?${params.toString()}`, accessToken, {
+        headers: query ? { ConsistencyLevel: "eventual" } : {},
+      });
+      const messages = response.value || [];
+      logs.push(`Found ${messages.length} messages`);
+
+      const emails = messages.map((message: any) => ({
+        id: message.id,
+        threadId: message.conversationId,
+        from: message.from?.emailAddress?.address,
+        to: message.toRecipients?.map((r: any) => r.emailAddress?.address).join(", "),
+        subject: message.subject,
+        date: message.receivedDateTime,
+        snippet: message.bodyPreview,
+        body: message.bodyPreview?.substring(0, 5000) || "",
+        labels: [],
+        attachments: [],
+      }));
+
+      return {
+        success: true,
+        output: {
+          emails,
+          totalResults: messages.length,
+          query,
+        },
+        executionTime: 0,
+        logs,
+      };
+    }
+
+    // Gmail
     const listParams = new URLSearchParams({
       maxResults: String(maxResults),
     });
@@ -81,7 +243,6 @@ async function executeEmailRead(
     const messageIds = listResponse.messages || [];
     logs.push(`Found ${messageIds.length} messages`);
 
-    // Fetch each message
     const emails = await Promise.all(
       messageIds.slice(0, maxResults).map(async (msg: { id: string }) => {
         const message = await gmailRequest(
@@ -91,12 +252,10 @@ async function executeEmailRead(
 
         const headers = parseEmailHeaders(message.payload.headers || []);
         
-        // Get body
         let body = "";
         if (message.payload.body?.data) {
           body = decodeEmailBody(message.payload.body);
         } else if (message.payload.parts) {
-          // Multipart message
           for (const part of message.payload.parts) {
             if (part.mimeType === "text/plain" && part.body?.data) {
               body = decodeEmailBody(part.body);
@@ -105,7 +264,6 @@ async function executeEmailRead(
           }
         }
 
-        // Get attachments info
         let attachments: Array<{ name: string; mimeType: string; size: number }> = [];
         if (includeAttachments && message.payload.parts) {
           attachments = message.payload.parts
@@ -125,7 +283,7 @@ async function executeEmailRead(
           subject: headers.subject,
           date: headers.date,
           snippet: message.snippet,
-          body: body.substring(0, 5000), // Limit body size
+          body: body.substring(0, 5000),
           labels: message.labelIds,
           attachments,
         };
@@ -165,11 +323,16 @@ async function executeEmailSend(
   const { to, subject, body, cc, bcc, isHtml = false } = input;
   const logs: string[] = [];
 
-  const accessToken = credentials?.accessToken;
-  if (!accessToken) {
+  let provider: OAuthProvider = "google";
+  let accessToken = "";
+  try {
+    const token = await getAccessToken(credentials);
+    provider = token.provider;
+    accessToken = token.accessToken;
+  } catch (error) {
     return {
       success: false,
-      error: "Gmail access token required. Please connect your Gmail account.",
+      error: error instanceof Error ? error.message : "Email access token required.",
       executionTime: 0,
       logs: ["Error: No access token"],
     };
@@ -188,7 +351,43 @@ async function executeEmailSend(
     logs.push(`Sending email to: ${to}`);
     logs.push(`Subject: ${subject}`);
 
-    // Build RFC 2822 formatted email
+    if (provider === "microsoft") {
+      await graphRequest("/me/sendMail", accessToken, {
+        method: "POST",
+        body: JSON.stringify({
+          message: {
+            subject,
+            body: {
+              contentType: isHtml ? "HTML" : "Text",
+              content: body,
+            },
+            toRecipients: to.split(",").map((email) => ({
+              emailAddress: { address: email.trim() },
+            })),
+            ccRecipients: cc ? cc.split(",").map((email) => ({
+              emailAddress: { address: email.trim() },
+            })) : undefined,
+            bccRecipients: bcc ? bcc.split(",").map((email) => ({
+              emailAddress: { address: email.trim() },
+            })) : undefined,
+          },
+          saveToSentItems: true,
+        }),
+      });
+
+      logs.push("Email sent successfully via Outlook");
+      return {
+        success: true,
+        output: {
+          messageId: "sent",
+          to,
+          subject,
+        },
+        executionTime: 0,
+        logs,
+      };
+    }
+
     const headers = [
       `To: ${to}`,
       `Subject: ${subject}`,
@@ -244,13 +443,27 @@ async function executeEmailCategorize(
   const { emailIds, categories = ["important", "promotional", "social", "updates", "spam"] } = input;
   const logs: string[] = [];
 
-  const accessToken = credentials?.accessToken;
-  if (!accessToken) {
+  let accessToken = "";
+  let provider: OAuthProvider = "google";
+  try {
+    const token = await getAccessToken(credentials);
+    provider = token.provider;
+    accessToken = token.accessToken;
+  } catch (error) {
     return {
       success: false,
-      error: "Gmail access token required. Please connect your Gmail account.",
+      error: error instanceof Error ? error.message : "Email access token required.",
       executionTime: 0,
       logs: ["Error: No access token"],
+    };
+  }
+
+  if (provider !== "google") {
+    return {
+      success: false,
+      error: "This tool currently supports Gmail only. Please connect Gmail.",
+      executionTime: 0,
+      logs: ["Error: Outlook not supported for this tool"],
     };
   }
 
@@ -346,13 +559,27 @@ async function executeEmailDraft(
   const { emailId, tone = "professional", instructions } = input;
   const logs: string[] = [];
 
-  const accessToken = credentials?.accessToken;
-  if (!accessToken) {
+  let accessToken = "";
+  let provider: OAuthProvider = "google";
+  try {
+    const token = await getAccessToken(credentials);
+    provider = token.provider;
+    accessToken = token.accessToken;
+  } catch (error) {
     return {
       success: false,
-      error: "Gmail access token required. Please connect your Gmail account.",
+      error: error instanceof Error ? error.message : "Email access token required.",
       executionTime: 0,
       logs: ["Error: No access token"],
+    };
+  }
+
+  if (provider !== "google") {
+    return {
+      success: false,
+      error: "This tool currently supports Gmail only. Please connect Gmail.",
+      executionTime: 0,
+      logs: ["Error: Outlook not supported for this tool"],
     };
   }
 
@@ -481,13 +708,27 @@ async function executeEmailUnsubscribe(
   const { action = "scan", emailIds } = input;
   const logs: string[] = [];
 
-  const accessToken = credentials?.accessToken;
-  if (!accessToken) {
+  let accessToken = "";
+  let provider: OAuthProvider = "google";
+  try {
+    const token = await getAccessToken(credentials);
+    provider = token.provider;
+    accessToken = token.accessToken;
+  } catch (error) {
     return {
       success: false,
-      error: "Gmail access token required. Please connect your Gmail account.",
+      error: error instanceof Error ? error.message : "Email access token required.",
       executionTime: 0,
       logs: ["Error: No access token"],
+    };
+  }
+
+  if (provider !== "google") {
+    return {
+      success: false,
+      error: "This tool currently supports Gmail only. Please connect Gmail.",
+      executionTime: 0,
+      logs: ["Error: Outlook not supported for this tool"],
     };
   }
 

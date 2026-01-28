@@ -5,6 +5,8 @@ import { agentConfigSchema, toolCategories } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { executeTool, hasExecutor, getExecutableTools } from "./tools";
+import { toolRegistry } from "./tools/registry";
+import { randomUUID } from "crypto";
 import {
   analyzeUserRequest,
   classifyIntent,
@@ -383,6 +385,211 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================================================
+  // OAUTH CONNECTIONS (Gmail / Outlook)
+  // ============================================================================
+
+  const oauthStates = new Map<string, { userId: string; provider: "google" | "microsoft"; toolId: string }>();
+
+  const getBaseUrl = (req: any) => {
+    const envBase = process.env.PUBLIC_BASE_URL;
+    if (envBase) return envBase.replace(/\/+$/, "");
+    return `${req.protocol}://${req.get("host")}`;
+  };
+
+  const getEmailToolIds = () => {
+    return toolRegistry
+      .filter((t) => t.category === "email" && t.authType === "oauth2")
+      .map((t) => t.id);
+  };
+
+  const getGoogleScopes = () => [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.compose",
+  ];
+
+  const getMicrosoftScopes = () => [
+    "offline_access",
+    "Mail.Read",
+    "Mail.ReadWrite",
+    "Mail.Send",
+  ];
+
+  const exchangeGoogleToken = async (code: string, redirectUri: string) => {
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new Error("Missing Google OAuth client configuration.");
+    }
+
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "Failed to exchange Google OAuth token.");
+    }
+
+    return response.json();
+  };
+
+  const exchangeMicrosoftToken = async (code: string, redirectUri: string) => {
+    const clientId = process.env.MICROSOFT_OAUTH_CLIENT_ID;
+    const clientSecret = process.env.MICROSOFT_OAUTH_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new Error("Missing Microsoft OAuth client configuration.");
+    }
+
+    const response = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "Failed to exchange Microsoft OAuth token.");
+    }
+
+    return response.json();
+  };
+
+  const storeEmailCredentials = async (
+    userId: string,
+    provider: "google" | "microsoft",
+    tokenResponse: any
+  ) => {
+    const accessToken = tokenResponse.access_token;
+    const refreshToken = tokenResponse.refresh_token;
+    const expiresIn = tokenResponse.expires_in || 3600;
+    const expiresAt = Date.now() + expiresIn * 1000;
+
+    if (!accessToken) {
+      throw new Error("Missing access token from OAuth provider.");
+    }
+
+    const emailToolIds = getEmailToolIds();
+    await Promise.all(
+      emailToolIds.map((toolId) =>
+        toolStorage.saveCredential(userId, toolId, "oauth2", {
+          provider,
+          accessToken,
+          refreshToken,
+          expiresAt,
+        })
+      )
+    );
+  };
+
+  app.get("/api/oauth/google/start", isAuthenticated, async (req: any, res) => {
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+    if (!clientId) {
+      return res.status(500).send("Google OAuth client not configured.");
+    }
+
+    const toolId = (req.query.toolId as string) || "email_read";
+    const state = randomUUID();
+    oauthStates.set(state, { userId: req.user.claims.sub, provider: "google", toolId });
+
+    const redirectUri = `${getBaseUrl(req)}/api/oauth/google/callback`;
+    const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("access_type", "offline");
+    authUrl.searchParams.set("prompt", "consent");
+    authUrl.searchParams.set("include_granted_scopes", "true");
+    authUrl.searchParams.set("scope", getGoogleScopes().join(" "));
+    authUrl.searchParams.set("state", state);
+
+    res.redirect(authUrl.toString());
+  });
+
+  app.get("/api/oauth/google/callback", async (req, res) => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    if (!code || !state) {
+      return res.status(400).send("Missing OAuth code or state.");
+    }
+
+    const savedState = oauthStates.get(state);
+    if (!savedState) {
+      return res.status(400).send("OAuth state expired. Please try again.");
+    }
+
+    oauthStates.delete(state);
+
+    try {
+      const redirectUri = `${getBaseUrl(req)}/api/oauth/google/callback`;
+      const tokenResponse = await exchangeGoogleToken(code, redirectUri);
+      await storeEmailCredentials(savedState.userId, "google", tokenResponse);
+      res.send("<script>window.close();</script>Connected. You can return to the app.");
+    } catch (error) {
+      res.status(500).send(`OAuth failed: ${(error as Error).message}`);
+    }
+  });
+
+  app.get("/api/oauth/microsoft/start", isAuthenticated, async (req: any, res) => {
+    const clientId = process.env.MICROSOFT_OAUTH_CLIENT_ID;
+    if (!clientId) {
+      return res.status(500).send("Microsoft OAuth client not configured.");
+    }
+
+    const toolId = (req.query.toolId as string) || "email_read";
+    const state = randomUUID();
+    oauthStates.set(state, { userId: req.user.claims.sub, provider: "microsoft", toolId });
+
+    const redirectUri = `${getBaseUrl(req)}/api/oauth/microsoft/callback`;
+    const authUrl = new URL("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("response_mode", "query");
+    authUrl.searchParams.set("scope", getMicrosoftScopes().join(" "));
+    authUrl.searchParams.set("state", state);
+
+    res.redirect(authUrl.toString());
+  });
+
+  app.get("/api/oauth/microsoft/callback", async (req, res) => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    if (!code || !state) {
+      return res.status(400).send("Missing OAuth code or state.");
+    }
+
+    const savedState = oauthStates.get(state);
+    if (!savedState) {
+      return res.status(400).send("OAuth state expired. Please try again.");
+    }
+
+    oauthStates.delete(state);
+
+    try {
+      const redirectUri = `${getBaseUrl(req)}/api/oauth/microsoft/callback`;
+      const tokenResponse = await exchangeMicrosoftToken(code, redirectUri);
+      await storeEmailCredentials(savedState.userId, "microsoft", tokenResponse);
+      res.send("<script>window.close();</script>Connected. You can return to the app.");
+    } catch (error) {
+      res.status(500).send(`OAuth failed: ${(error as Error).message}`);
+    }
+  });
+
   // Save credential for a tool
   app.post("/api/tools/:id/auth", isAuthenticated, async (req: any, res) => {
     try {
@@ -435,9 +642,33 @@ export async function registerRoutes(
       if (!credential) {
         return res.status(400).json({ error: "No credential found. Please connect first." });
       }
-      
-      // TODO: Implement actual credential testing per tool type
-      // For now, just return success if credential exists
+
+      if (tool.authType === "oauth2") {
+        const provider = (credential as any).provider || tool.authConfig?.provider;
+        try {
+          if (provider === "google") {
+            const response = await fetch("https://www.googleapis.com/gmail/v1/users/me/profile", {
+              headers: { Authorization: `Bearer ${(credential as any).accessToken}` },
+            });
+            if (!response.ok) {
+              return res.status(400).json({ error: "Gmail authentication failed. Please reconnect." });
+            }
+            return res.json({ success: true, message: "Gmail connected." });
+          }
+          if (provider === "microsoft") {
+            const response = await fetch("https://graph.microsoft.com/v1.0/me", {
+              headers: { Authorization: `Bearer ${(credential as any).accessToken}` },
+            });
+            if (!response.ok) {
+              return res.status(400).json({ error: "Outlook authentication failed. Please reconnect." });
+            }
+            return res.json({ success: true, message: "Outlook connected." });
+          }
+        } catch {
+          return res.status(400).json({ error: "OAuth test failed. Please reconnect." });
+        }
+      }
+
       res.json({ success: true, message: "Credential is valid" });
     } catch (error) {
       res.status(500).json({ error: "Failed to test credential" });
