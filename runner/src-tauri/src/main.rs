@@ -143,20 +143,22 @@ struct AppState {
 
 const KEYCHAIN_SERVICE: &str = "AgentForge Runner";
 
-fn keychain_entry(key: &str) -> Entry {
+fn keychain_entry(key: &str) -> Result<Entry, keyring::Error> {
     Entry::new(KEYCHAIN_SERVICE, key)
 }
 
 #[tauri::command]
 fn set_secret(key: String, value: String) -> Result<(), String> {
-    keychain_entry(&key)
+    let entry = keychain_entry(&key).map_err(|e| format!("Failed to open keychain: {e}"))?;
+    entry
         .set_password(&value)
         .map_err(|e| format!("Failed to save secret: {e}"))
 }
 
 #[tauri::command]
 fn get_secret(key: String) -> Result<Option<String>, String> {
-    match keychain_entry(&key).get_password() {
+    let entry = keychain_entry(&key).map_err(|e| format!("Failed to open keychain: {e}"))?;
+    match entry.get_password() {
         Ok(value) => Ok(Some(value)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(err) => Err(format!("Failed to read secret: {err}")),
@@ -165,7 +167,8 @@ fn get_secret(key: String) -> Result<Option<String>, String> {
 
 #[tauri::command]
 fn delete_secret(key: String) -> Result<(), String> {
-    match keychain_entry(&key).delete_password() {
+    let entry = keychain_entry(&key).map_err(|e| format!("Failed to open keychain: {e}"))?;
+    match entry.delete_password() {
         Ok(_) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(err) => Err(format!("Failed to delete secret: {err}")),
@@ -398,12 +401,15 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let state = window.state::<AppState>();
-                if let Ok(guard) = state.run_in_background.lock() {
-                    if *guard {
-                        api.prevent_close();
-                        let _ = window.hide();
-                    }
+                let should_hide = window
+                    .state::<AppState>()
+                    .run_in_background
+                    .lock()
+                    .map(|guard| *guard)
+                    .unwrap_or(false);
+                if should_hide {
+                    api.prevent_close();
+                    let _ = window.hide();
                 }
             }
         })
