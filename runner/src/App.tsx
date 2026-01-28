@@ -74,7 +74,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [config, setConfig] = useState<AgentConfig>(DEFAULT_CONFIG);
   const [showSettings, setShowSettings] = useState(false);
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'error'>('checking');
+  const [providerStatus, setProviderStatus] = useState<'idle' | 'checking' | 'connected' | 'error'>('idle');
   const [apiKey, setApiKey] = useState('');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
@@ -140,7 +140,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    checkBackend();
     loadConfig();
   }, []);
 
@@ -163,12 +162,159 @@ export default function App() {
     }
   }, [input]);
 
-  const checkBackend = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(5000) });
-      setBackendStatus(response.ok ? 'connected' : 'error');
-    } catch {
-      setBackendStatus('error');
+  const buildSystemPrompt = () => {
+    let content = config.personality || 'You are a helpful assistant.';
+    if (config.goal) {
+      content += `\n\nYour goal: ${config.goal}`;
+    }
+    if (config.tools?.length) {
+      content += '\n\nYou have access to the following tools:\n';
+      content += config.tools.map((tool) => `- ${tool}`).join('\n');
+    }
+    return content;
+  };
+
+  const buildInferenceMessages = (userContent: string) => {
+    const system = { role: 'system' as const, content: buildSystemPrompt() };
+    const history = messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({ role: m.role, content: m.content }));
+    return [system, ...history, { role: 'user' as const, content: userContent }];
+  };
+
+  const callOpenAICompatible = async (url: string, apiKeyValue: string, model: string, inferenceMessages: any[]) => {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKeyValue}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: inferenceMessages,
+        temperature: config.temperature ?? 0.7,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `API error (${response.status})`);
+    }
+
+    const data = await response.json();
+    return data?.choices?.[0]?.message?.content || '';
+  };
+
+  const callAnthropic = async (apiKeyValue: string, model: string, inferenceMessages: any[]) => {
+    const systemMessage = inferenceMessages.find((m: any) => m.role === 'system');
+    const chatMessages = inferenceMessages.filter((m: any) => m.role !== 'system');
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKeyValue,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 4096,
+        temperature: config.temperature ?? 0.7,
+        system: systemMessage?.content || '',
+        messages: chatMessages.map((m: any) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `API error (${response.status})`);
+    }
+
+    const data = await response.json();
+    return data?.content?.[0]?.text || '';
+  };
+
+  const callGoogle = async (apiKeyValue: string, model: string, inferenceMessages: any[]) => {
+    const systemMessage = inferenceMessages.find((m: any) => m.role === 'system');
+    const chatMessages = inferenceMessages.filter((m: any) => m.role !== 'system');
+    const contents = chatMessages.map((m: any) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyValue}`;
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: systemMessage ? { parts: [{ text: systemMessage.content }] } : undefined,
+        generationConfig: {
+          temperature: config.temperature ?? 0.7,
+          maxOutputTokens: 4096,
+        },
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `API error (${response.status})`);
+    }
+
+    const data = await response.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  };
+
+  const callOllama = async (model: string, inferenceMessages: any[]) => {
+    const response = await fetch('http://localhost:11434/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages: inferenceMessages.map((m: any) => ({ role: m.role, content: m.content })),
+        stream: false,
+        options: { temperature: config.temperature ?? 0.7 },
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Ollama error');
+    }
+
+    const data = await response.json();
+    return data?.message?.content || '';
+  };
+
+  const runInferenceDirect = async (userContent: string) => {
+    const inferenceMessages = buildInferenceMessages(userContent);
+    const key = (apiKey || '').trim();
+    const model = config.model;
+
+    if (config.provider !== 'ollama' && !key) {
+      throw new Error('Missing API key.');
+    }
+
+    switch (config.provider) {
+      case 'ollama':
+        return await callOllama(model, inferenceMessages);
+      case 'openai':
+        return await callOpenAICompatible('https://api.openai.com/v1/chat/completions', key, model, inferenceMessages);
+      case 'groq':
+        return await callOpenAICompatible('https://api.groq.com/openai/v1/chat/completions', key, model, inferenceMessages);
+      case 'xai':
+        return await callOpenAICompatible('https://api.x.ai/v1/chat/completions', key, model, inferenceMessages);
+      case 'anthropic':
+        return await callAnthropic(key, model, inferenceMessages);
+      case 'google':
+        return await callGoogle(key, model, inferenceMessages);
+      default:
+        throw new Error(`Unsupported provider: ${config.provider}`);
     }
   };
 
@@ -181,34 +327,62 @@ export default function App() {
 
     setTestStatus('testing');
     setTestMessage('');
+    setProviderStatus('checking');
 
     try {
-      const response = await fetch(`${BACKEND_URL}/providers/test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: config.provider,
-          model: config.model,
-          apiKey,
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok || data.success === false) {
-        const errorMsg = data.error || `Failed to connect to ${config.provider}.`;
-        setTestStatus('error');
-        setTestMessage(errorMsg);
+      if (config.provider === 'ollama') {
+        await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(5000) });
+        setTestStatus('success');
+        setTestMessage('Ollama is running.');
+        setProviderStatus('connected');
         return;
       }
 
+      const model = config.model;
+      const key = (apiKey || '').trim();
+      if (!key) {
+        throw new Error('Missing API key.');
+      }
+
+      if (config.provider === 'openai') {
+        await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(10000),
+        });
+      } else if (config.provider === 'groq') {
+        await fetch('https://api.groq.com/openai/v1/models', {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(10000),
+        });
+      } else if (config.provider === 'xai') {
+        await fetch('https://api.x.ai/v1/models', {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(10000),
+        });
+      } else if (config.provider === 'anthropic') {
+        await fetch('https://api.anthropic.com/v1/models', {
+          headers: {
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+      } else if (config.provider === 'google') {
+        await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`, {
+          signal: AbortSignal.timeout(10000),
+        });
+      } else {
+        throw new Error(`Unsupported provider: ${config.provider}`);
+      }
+
       setTestStatus('success');
-      setTestMessage(data.message || `Connected to ${config.provider}.`);
-      checkBackend();
-    } catch {
+      setTestMessage(`Connected to ${config.provider}.`);
+      setProviderStatus('connected');
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : `Failed to connect to ${config.provider}.`;
       setTestStatus('error');
-      setTestMessage('Runner backend is not responding. Please restart the app.');
+      setTestMessage(errorMsg);
+      setProviderStatus('error');
     }
   };
 
@@ -353,31 +527,15 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMessage.content,
-          history: messages.map((m) => ({ role: m.role, content: m.content })),
-          config: { ...config, apiKey },
-        }),
-        signal: AbortSignal.timeout(60000),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to get response');
-      }
-
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || 'Sorry, I could not generate a response.',
+        content: await runInferenceDirect(userMessage.content),
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      setProviderStatus('connected');
     } catch (error) {
       const rawError = error instanceof Error ? error.message : 'Connection failed';
       const errorMsg = rawError.includes('CERTIFICATE_VERIFY_FAILED')
@@ -389,6 +547,9 @@ export default function App() {
         content: `⚠️ ${errorMsg}\n\nPlease check your connection and settings.`,
         timestamp: new Date(),
       };
+      setTestStatus('error');
+      setTestMessage(errorMsg);
+      setProviderStatus('error');
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -448,7 +609,7 @@ export default function App() {
       setShowSettings(false);
       setTestStatus('idle');
       setTestMessage('');
-      checkBackend();
+      setProviderStatus('idle');
     } catch {
       console.error('Failed to save');
     }
@@ -538,18 +699,18 @@ export default function App() {
   const StatusBadge = () => (
     <div className={clsx(
       'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium',
-      backendStatus === 'connected' 
+      providerStatus === 'connected' 
         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-        : backendStatus === 'error'
+        : providerStatus === 'error'
         ? 'bg-red-500/10 text-red-400 border border-red-500/20'
         : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
     )}>
       <span className={clsx(
         'w-1.5 h-1.5 rounded-full',
-        backendStatus === 'connected' ? 'bg-emerald-400' : 
-        backendStatus === 'error' ? 'bg-red-400' : 'bg-yellow-400 animate-pulse'
+        providerStatus === 'connected' ? 'bg-emerald-400' : 
+        providerStatus === 'error' ? 'bg-red-400' : 'bg-yellow-400 animate-pulse'
       )} />
-      {backendStatus === 'connected' ? 'Online' : backendStatus === 'error' ? 'Offline' : 'Connecting'}
+      {providerStatus === 'connected' ? 'Online' : providerStatus === 'error' ? 'Offline' : 'Ready'}
     </div>
   );
 
@@ -846,17 +1007,17 @@ export default function App() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={backendStatus === 'connected' ? "Ask me anything..." : "Connecting..."}
+            placeholder="Ask me anything..."
             className="flex-1 bg-transparent text-sm resize-none focus:outline-none placeholder:text-white/30 max-h-[150px] py-1.5 text-white/90"
             rows={1}
-            disabled={isLoading || backendStatus !== 'connected'}
+            disabled={isLoading || missingApiKey}
           />
           <button
             onClick={sendMessage}
-            disabled={isLoading || !input.trim() || backendStatus !== 'connected'}
+            disabled={isLoading || !input.trim() || missingApiKey}
             className={clsx(
               'p-2.5 rounded-xl transition-all duration-200 flex-shrink-0',
-              input.trim() && !isLoading && backendStatus === 'connected'
+              input.trim() && !isLoading && !missingApiKey
                 ? 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white shadow-lg shadow-violet-500/25 scale-100 active:scale-95'
                 : 'bg-white/5 text-white/20 scale-95 cursor-not-allowed'
             )}
@@ -883,10 +1044,10 @@ export default function App() {
           </div>
         )}
 
-        {backendStatus === 'error' && !missingApiKey && (
+        {providerStatus === 'error' && testMessage && !missingApiKey && (
           <div className="mt-3 flex items-center justify-center gap-2 text-xs text-red-400/80">
             <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-            Runner backend is offline. Please restart the app.
+            {testMessage}
           </div>
         )}
       </div>
