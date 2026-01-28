@@ -687,12 +687,25 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if resp.status >= 400:
                     raise Exception(f'HTTP {resp.status}')
                 resp.read()
+        except ssl.SSLCertVerificationError:
+            raise Exception(self.ssl_help_message())
         except urllib.error.HTTPError as e:
             try:
                 body = e.read().decode('utf-8')
                 raise Exception(body or f'HTTP {e.code}')
             except Exception:
                 raise Exception(f'HTTP {e.code}')
+        except urllib.error.URLError as e:
+            if isinstance(getattr(e, 'reason', None), ssl.SSLCertVerificationError):
+                raise Exception(self.ssl_help_message())
+            raise Exception(f'Network error: {e.reason}')
+
+    def ssl_help_message(self):
+        return (
+            "SSL certificate verification failed. "
+            "If you're on macOS with Python from python.org, "
+            "run: /Applications/Python 3.x/Install Certificates.command"
+        )
 
     def send_json_response(self, data, status=200):
         self.send_response(status)
