@@ -415,7 +415,7 @@ fn main() {
         ])
         .setup(|app| {
             // Handle deep links (agentforge:// URLs)
-            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 app.deep_link().register_all()?;
@@ -431,10 +431,26 @@ fn main() {
             spawn_backend(&app_handle);
             start_mcp_server(&app_handle);
 
+            let mut pending_deeplinks: Vec<String> = Vec::new();
+            let mut pending_agent_files: Vec<String> = Vec::new();
+            for arg in std::env::args().skip(1) {
+                if arg.starts_with("agentforge://") {
+                    pending_deeplinks.push(arg);
+                    continue;
+                }
+                if arg.ends_with(".agentforge") {
+                    pending_agent_files.push(arg);
+                }
+            }
+
             // Handle file-open at app launch (e.g., double-click .agentforge file)
-            if let Some(path) = std::env::args().skip(1).find(|arg| arg.ends_with(".agentforge"))
-            {
+            for path in pending_agent_files {
                 try_load_agent_file(&app_handle, &path);
+            }
+
+            // Emit any deep links passed on launch (macOS often passes URLs as args).
+            for url in pending_deeplinks {
+                let _ = app_handle.emit("agentforge://deeplink", url);
             }
 
             Ok(())
