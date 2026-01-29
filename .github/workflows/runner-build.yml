@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -108,9 +111,11 @@ jobs:
           if [ -d "$APP_PATH" ]; then
             xcrun stapler staple "$APP_PATH"
           fi
+          # DMG stapling can fail if Apple hasn't propagated the ticket yet.
+          # We already staple the .app; don't fail the build if the DMG isn't ready.
           DMG_PATH=$(ls src-tauri/target/release/bundle/dmg/*.dmg 2>/dev/null | head -n 1 || true)
           if [ -n "$DMG_PATH" ]; then
-            xcrun stapler staple "$DMG_PATH"
+            xcrun stapler staple "$DMG_PATH" || true
           fi
 
       - name: Rename bundle assets (macOS)

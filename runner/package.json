@@ -1,6 +1,6 @@
 {
   "name": "agentforge-runner",
-  "version": "2.1.11",
+  "version": "2.1.12",
   "description": "Native desktop app for running AgentForge agents",
   "scripts": {
     "dev": "vite",

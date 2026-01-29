@@ -296,7 +296,7 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
   };
 
   const GITHUB_REPO = "Jonnycatx/agentforge-runner";
-  const RUNNER_VERSION = "2.1.11";
+  const RUNNER_VERSION = "2.1.12";
   const RUNNER_ASSET_NAMES: Record<OSType, string> = {
     mac: `AgentForge.Runner_${RUNNER_VERSION}_aarch64.dmg`,
     windows: `AgentForge.Runner_${RUNNER_VERSION}_x64-setup.exe`,
