@@ -141,7 +141,6 @@ export default function App() {
   const [emailTokens, setEmailTokens] = useState<Record<string, EmailToken>>({});
   const [emailConnectStatus, setEmailConnectStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [emailConnectMessage, setEmailConnectMessage] = useState('');
-  const [emailAddress, setEmailAddress] = useState('');
   const [brainPath, setBrainPath] = useState('');
   const [brainStatus, setBrainStatus] = useState<'idle' | 'saving' | 'ready' | 'error'>('idle');
   const [brainMessage, setBrainMessage] = useState('');
@@ -637,12 +636,6 @@ export default function App() {
     setEmailConnectStatus('connecting');
     setEmailConnectMessage('');
 
-    if (!emailAddress.trim()) {
-      setEmailConnectStatus('error');
-      setEmailConnectMessage('Enter your email address first.');
-      return;
-    }
-
     const settings = emailSettings;
     const clientId = provider === 'google' ? settings.googleClientId : settings.microsoftClientId;
     if (!clientId) {
@@ -1069,14 +1062,6 @@ export default function App() {
       setEmailConnectStatus('error');
       setEmailConnectMessage(error instanceof Error ? error.message : 'Failed to read inbox.');
     }
-  };
-
-  const resolveEmailProvider = () => {
-    if (/@(outlook|hotmail|live)\.com$/i.test(emailAddress)) return 'microsoft';
-    if (/@(office365|onmicrosoft)\./i.test(emailAddress)) return 'microsoft';
-    if (/@.*(microsoft|outlook)/i.test(emailAddress)) return 'microsoft';
-    if (/@.*(gmail|googlemail)\.com$/i.test(emailAddress)) return 'google';
-    return 'google';
   };
 
   const selectBrainFolder = async () => {
@@ -1888,32 +1873,25 @@ export default function App() {
             <div>
               <p className="text-[10px] uppercase tracking-wider text-white/40">Email Access</p>
               <p className="text-xs text-white/60">
-                Connect Gmail inside this window. Ask support to enable Outlook.
+                Connect your email account with a one-click sign-in.
               </p>
             </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] uppercase tracking-wider text-white/40">Email address</label>
-              <input
-                type="email"
-                value={emailAddress}
-                onChange={(e) => setEmailAddress(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-violet-500/50 transition-colors"
-                placeholder="you@company.com"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => startEmailOAuth('google')}
+                className="bg-white/5 hover:bg-white/10 text-white/80 font-medium py-2 rounded-lg transition-all text-xs active:scale-[0.98] disabled:opacity-50"
+                disabled={emailConnectStatus === 'connecting' || !emailSettings.googleClientId}
+              >
+                Sign in with Google
+              </button>
+              <button
+                onClick={() => startEmailOAuth('microsoft')}
+                className="bg-white/5 hover:bg-white/10 text-white/80 font-medium py-2 rounded-lg transition-all text-xs active:scale-[0.98] disabled:opacity-50"
+                disabled={emailConnectStatus === 'connecting' || !emailSettings.microsoftClientId}
+              >
+                Sign in with Microsoft
+              </button>
             </div>
-            <button
-              onClick={() => startEmailOAuth(resolveEmailProvider())}
-              className="w-full bg-white/5 hover:bg-white/10 text-white/70 font-medium py-2 rounded-lg transition-all text-xs active:scale-[0.98] disabled:opacity-50"
-              disabled={
-                emailConnectStatus === 'connecting' ||
-                !emailAddress.trim() ||
-                (resolveEmailProvider() === 'google'
-                  ? !emailSettings.googleClientId
-                  : !emailSettings.microsoftClientId)
-              }
-            >
-              Connect Email
-            </button>
             <button
               onClick={handleEmailCheck}
               className="w-full bg-white/10 hover:bg-white/20 text-white/80 font-medium py-2 rounded-lg transition-all text-xs active:scale-[0.98]"
@@ -1932,9 +1910,9 @@ export default function App() {
                 {emailConnectMessage}
               </div>
             )}
-            {!emailSettings.googleClientId && (
+            {(!emailSettings.googleClientId || !emailSettings.microsoftClientId) && (
               <div className="text-xs px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-yellow-200">
-                Email connect is not configured in this build.
+                Email sign-in needs provider credentials configured for this build.
               </div>
             )}
             <p className="text-[10px] text-white/40">

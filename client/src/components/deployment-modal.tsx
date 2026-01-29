@@ -191,7 +191,7 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
   };
 
   const GITHUB_REPO = "Jonnycatx/agentforge-runner";
-  const RUNNER_VERSION = "2.1.14";
+  const RUNNER_VERSION = "2.1.15";
   const getRunnerDownloadUrl = () => {
     const baseUrl = `https://github.com/${GITHUB_REPO}/releases/latest/download`;
     switch (detectedOS) {
