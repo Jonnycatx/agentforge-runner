@@ -1,6 +1,6 @@
 [package]
 name = "agentforge-runner"
-version = "2.1.13"
+version = "2.1.14"
 description = "Native desktop app for AgentForge agents"
 authors = ["AgentForge"]
 edition = "2021"

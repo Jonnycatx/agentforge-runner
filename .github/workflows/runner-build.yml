@@ -90,6 +90,9 @@ jobs:
       - name: Build frontend
         working-directory: runner
         run: npm run build
+        env:
+          VITE_EMAIL_GOOGLE_CLIENT_ID: ${{ secrets.VITE_EMAIL_GOOGLE_CLIENT_ID }}
+          VITE_EMAIL_MICROSOFT_CLIENT_ID: ${{ secrets.VITE_EMAIL_MICROSOFT_CLIENT_ID }}
 
       - name: Build Tauri (macOS signed + notarized)
         if: matrix.platform == 'macos-latest'

@@ -1453,21 +1453,37 @@ export default function App() {
 
   const saveSettings = async () => {
     try {
-      const updatedConfig = { ...config, apiKey };
+      const trimmedKey = (apiKey || '').trim();
+      const updatedConfig = { ...config, apiKey: trimmedKey };
+      const storedSettings = readStoredSettings();
+      const nextApiKeys = { ...(storedSettings.apiKeys || {}) };
+      if (updatedConfig.provider !== 'ollama') {
+        if (trimmedKey) {
+          nextApiKeys[updatedConfig.provider] = trimmedKey;
+        } else {
+          delete nextApiKeys[updatedConfig.provider];
+        }
+      }
       writeStoredSettings({
         provider: updatedConfig.provider,
         model: updatedConfig.model,
         temperature: updatedConfig.temperature,
         models: {
-          ...(readStoredSettings().models || {}),
+          ...(storedSettings.models || {}),
           ...(updatedConfig.model ? { [updatedConfig.provider]: updatedConfig.model } : {}),
         },
+        apiKey: trimmedKey || undefined,
+        apiKeys: nextApiKeys,
       });
       if (updatedConfig.provider !== 'ollama') {
-        if (apiKey) {
-          await invoke('set_secret', { key: `apiKey:${updatedConfig.provider}`, value: apiKey });
-        } else {
-          await invoke('delete_secret', { key: `apiKey:${updatedConfig.provider}` });
+        try {
+          if (trimmedKey) {
+            await invoke('set_secret', { key: `apiKey:${updatedConfig.provider}`, value: trimmedKey });
+          } else {
+            await invoke('delete_secret', { key: `apiKey:${updatedConfig.provider}` });
+          }
+        } catch {
+          console.warn('Keychain unavailable, using local storage fallback.');
         }
       }
       await fetch(`${BACKEND_URL}/config`, {
