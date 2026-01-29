@@ -49,20 +49,14 @@ const DEFAULT_MICROSOFT_CLIENT_ID = import.meta.env.VITE_EMAIL_MICROSOFT_CLIENT_
 const BRAIN_PATH_STORAGE_KEY = 'agentforge:brain-path';
 const APP_SETTINGS_STORAGE_KEY = 'agentforge:app-settings';
 const MCP_SETTINGS_STORAGE_KEY = 'agentforge:mcp-settings';
-const MCP_SCAN_PORTS = [1337, 8787, 3001, 5555, 7777];
+const MCP_SCAN_PORTS = [8787, 3001, 5555, 7777];
 
 const DEFAULT_MCP_SERVERS = [
   {
-    id: 'osaurus',
-    name: 'Osaurus MCP',
-    url: 'http://127.0.0.1:1337',
-    description: 'Local AI runtime with MCP tools',
-  },
-  {
-    id: 'local-mcp',
-    name: 'Local MCP',
+    id: 'agentforge-mcp',
+    name: 'AgentForge MCP',
     url: 'http://127.0.0.1:8787',
-    description: 'Generic local MCP server',
+    description: 'Built-in local MCP server',
   },
 ];
 
@@ -1877,7 +1871,9 @@ export default function App() {
           <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-3">
             <div>
               <p className="text-[10px] uppercase tracking-wider text-white/40">Email Access</p>
-              <p className="text-xs text-white/60">Connect Gmail or Outlook inside this window.</p>
+              <p className="text-xs text-white/60">
+                Connect Gmail inside this window. Ask support to enable Outlook.
+              </p>
             </div>
             <div className="space-y-2">
               <label className="block text-[10px] uppercase tracking-wider text-white/40">Email address</label>
@@ -1918,6 +1914,11 @@ export default function App() {
                     : 'text-white/60 border-white/10 bg-white/5'
               )}>
                 {emailConnectMessage}
+              </div>
+            )}
+            {!emailSettings.googleClientId && (
+              <div className="text-xs px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-yellow-200">
+                Email connect is not configured in this build.
               </div>
             )}
             <p className="text-[10px] text-white/40">
