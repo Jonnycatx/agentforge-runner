@@ -106,7 +106,8 @@ struct MemoryEntry {
     role: String,
     content: String,
     timestamp: String,
-    conversationId: String,
+    #[serde(rename = "conversationId")]
+    conversation_id: String,
 }
 
 #[derive(Serialize)]
@@ -121,7 +122,8 @@ struct AuditEntry {
     action: String,
     detail: String,
     timestamp: String,
-    conversationId: String,
+    #[serde(rename = "conversationId")]
+    conversation_id: String,
 }
 
 fn sanitize_agent_name(agent_name: &str) -> String {
