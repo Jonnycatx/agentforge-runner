@@ -116,6 +116,14 @@ struct MemoryMatch {
     timestamp: String,
 }
 
+#[derive(Serialize, Deserialize)]
+struct AuditEntry {
+    action: String,
+    detail: String,
+    timestamp: String,
+    conversationId: String,
+}
+
 fn sanitize_agent_name(agent_name: &str) -> String {
     agent_name
         .chars()
@@ -358,6 +366,35 @@ fn query_memory_entries(
     Ok(results)
 }
 
+#[tauri::command]
+fn append_audit_entry(
+    brain_path: String,
+    agent_name: String,
+    entry: String,
+) -> Result<(), String> {
+    let entry: AuditEntry =
+        serde_json::from_str(&entry).map_err(|e| format!("Invalid audit entry: {e}"))?;
+    if brain_path.trim().is_empty() {
+        return Err("Brain folder path is missing.".to_string());
+    }
+    let safe_agent = sanitize_agent_name(&agent_name);
+    let base = PathBuf::from(brain_path);
+    let target = base
+        .join("AgentForge Brain")
+        .join(safe_agent)
+        .join("audit");
+    fs::create_dir_all(&target).map_err(|e| format!("Failed to create audit folder: {e}"))?;
+    let file_path = target.join("audit.jsonl");
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&file_path)
+        .map_err(|e| format!("Failed to open audit file: {e}"))?;
+    let line = serde_json::to_string(&entry).map_err(|e| format!("Failed to serialize entry: {e}"))?;
+    writeln!(file, "{line}").map_err(|e| format!("Failed to write audit entry: {e}"))?;
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -367,6 +404,7 @@ fn main() {
             save_brain_conversation,
             append_memory_entry,
             query_memory_entries,
+            append_audit_entry,
             set_mcp_settings,
             set_secret,
             get_secret,

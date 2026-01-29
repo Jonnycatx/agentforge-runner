@@ -205,9 +205,9 @@ export default function App() {
     }
   };
 
-  const writeEmailTokens = (tokens: Record<string, EmailToken>) => {
+  const clearEmailTokens = () => {
     try {
-      localStorage.setItem(EMAIL_OAUTH_TOKENS_KEY, JSON.stringify(tokens));
+      localStorage.removeItem(EMAIL_OAUTH_TOKENS_KEY);
     } catch {
       // Ignore storage errors
     }
@@ -412,32 +412,10 @@ export default function App() {
       googleClientId: DEFAULT_GOOGLE_CLIENT_ID,
       microsoftClientId: DEFAULT_MICROSOFT_CLIENT_ID,
     });
-    setEmailTokens(readEmailTokens());
     const storedAppSettings = readAppSettings();
     setAppSettings(storedAppSettings);
     invoke('set_run_in_background', { enabled: storedAppSettings.runInBackground }).catch(() => null);
-    invoke<string | null>('get_secret', { key: 'emailToken:google' })
-      .then((value) => {
-        if (!value) return;
-        const token = JSON.parse(value) as EmailToken;
-        setEmailTokens((prev) => {
-          const next = { ...prev, google: token };
-          writeEmailTokens(next);
-          return next;
-        });
-      })
-      .catch(() => null);
-    invoke<string | null>('get_secret', { key: 'emailToken:microsoft' })
-      .then((value) => {
-        if (!value) return;
-        const token = JSON.parse(value) as EmailToken;
-        setEmailTokens((prev) => {
-          const next = { ...prev, microsoft: token };
-          writeEmailTokens(next);
-          return next;
-        });
-      })
-      .catch(() => null);
+    hydrateEmailTokens();
     const storedMcpSettings = readMcpSettings();
     setMcpSettings(storedMcpSettings);
     setCustomMcpUrl(storedMcpSettings.customUrl || '');
@@ -797,7 +775,6 @@ export default function App() {
       };
 
       setEmailTokens(nextTokens);
-      writeEmailTokens(nextTokens);
       await invoke('set_secret', {
         key: `emailToken:${provider}`,
         value: JSON.stringify(nextTokens[provider]),
@@ -850,7 +827,7 @@ export default function App() {
 
     const nextTokens = { ...emailTokens, [provider]: nextToken };
     setEmailTokens(nextTokens);
-    writeEmailTokens(nextTokens);
+    invoke('set_secret', { key: `emailToken:${provider}`, value: JSON.stringify(nextToken) }).catch(() => null);
     return nextToken;
   };
 
@@ -909,6 +886,43 @@ export default function App() {
     if (emailTokens.google?.accessToken) return 'google';
     if (emailTokens.microsoft?.accessToken) return 'microsoft';
     return null;
+  };
+
+  const hydrateEmailTokens = async () => {
+    const providers: Array<'google' | 'microsoft'> = ['google', 'microsoft'];
+    const nextTokens: Record<string, EmailToken> = { ...emailTokens };
+
+    for (const provider of providers) {
+      try {
+        const value = await invoke<string | null>('get_secret', { key: `emailToken:${provider}` });
+        if (value) {
+          nextTokens[provider] = JSON.parse(value) as EmailToken;
+        }
+      } catch {
+        // Ignore keychain failures
+      }
+    }
+
+    if (!nextTokens.google && !nextTokens.microsoft) {
+      const legacy = readEmailTokens();
+      if (legacy.google) {
+        nextTokens.google = legacy.google;
+      }
+      if (legacy.microsoft) {
+        nextTokens.microsoft = legacy.microsoft;
+      }
+      if (legacy.google || legacy.microsoft) {
+        if (legacy.google) {
+          invoke('set_secret', { key: 'emailToken:google', value: JSON.stringify(legacy.google) }).catch(() => null);
+        }
+        if (legacy.microsoft) {
+          invoke('set_secret', { key: 'emailToken:microsoft', value: JSON.stringify(legacy.microsoft) }).catch(() => null);
+        }
+        clearEmailTokens();
+      }
+    }
+
+    setEmailTokens(nextTokens);
   };
 
   const loadKeychainApiKey = async (provider: string) => {
@@ -1087,9 +1101,11 @@ export default function App() {
       localStorage.setItem(BRAIN_PATH_STORAGE_KEY, path);
       setBrainStatus('ready');
       setBrainMessage('Brain folder connected.');
+      logAuditEvent('brain_folder_selected', path);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || '');
       setBrainStatus('error');
-      setBrainMessage(error instanceof Error ? error.message : 'Failed to select folder.');
+      setBrainMessage(message ? `Failed to select folder: ${message}` : 'Failed to select folder.');
     }
   };
 
@@ -1134,6 +1150,21 @@ export default function App() {
       setBrainStatus('error');
       setBrainMessage(error instanceof Error ? error.message : 'Failed to save brain file.');
     }
+  };
+
+  const logAuditEvent = async (action: string, detail: string) => {
+    if (!brainPath) return;
+    const entry = {
+      action,
+      detail,
+      timestamp: new Date().toISOString(),
+      conversationId: conversationIdRef.current,
+    };
+    invoke('append_audit_entry', {
+      brainPath,
+      agentName: config.name,
+      entry: JSON.stringify(entry),
+    }).catch(() => null);
   };
 
   const appendMemoryEntry = async (message: Message) => {
@@ -1199,11 +1230,6 @@ export default function App() {
             ...(readStoredSettings().models || {}),
             ...(loadedConfig.model ? { [loadedConfig.provider]: loadedConfig.model } : {}),
           },
-          apiKeys: {
-            ...(readStoredSettings().apiKeys || {}),
-            ...(loadedConfig.apiKey ? { [loadedConfig.provider]: loadedConfig.apiKey } : {}),
-          },
-          apiKey: loadedConfig.apiKey || undefined,
         });
         // Add welcome message
         if (data.name) {
@@ -1237,11 +1263,6 @@ export default function App() {
           ...(readStoredSettings().models || {}),
           ...(loadedConfig.model ? { [loadedConfig.provider]: loadedConfig.model } : {}),
         },
-        apiKeys: {
-          ...(readStoredSettings().apiKeys || {}),
-          ...(loadedConfig.apiKey ? { [loadedConfig.provider]: loadedConfig.apiKey } : {}),
-        },
-        apiKey: loadedConfig.apiKey || undefined,
       });
       conversationIdRef.current = crypto.randomUUID();
       setMessages([{
@@ -1355,6 +1376,7 @@ export default function App() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    logAuditEvent('user_message', userMessage.content);
     setInput('');
     setIsLoading(true);
 
@@ -1376,6 +1398,7 @@ export default function App() {
         timestamp: new Date(),
       };
 
+      logAuditEvent('assistant_message', assistantMessage.content);
       setMessages((prev) => [...prev, assistantMessage]);
       setProviderStatus('connected');
     } catch (error) {
@@ -1445,11 +1468,6 @@ export default function App() {
           ...(readStoredSettings().models || {}),
           ...(updatedConfig.model ? { [updatedConfig.provider]: updatedConfig.model } : {}),
         },
-        apiKeys: {
-          ...(readStoredSettings().apiKeys || {}),
-          ...(apiKey ? { [updatedConfig.provider]: apiKey } : {}),
-        },
-        apiKey,
       });
       if (updatedConfig.provider !== 'ollama') {
         if (apiKey) {
@@ -1626,7 +1644,7 @@ export default function App() {
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="bg-[#1a1a1a]/95 backdrop-blur-xl border-b border-white/5 p-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
+        <div className="bg-[#1a1a1a]/95 backdrop-blur-xl border-b border-white/5 p-4 space-y-4 animate-in slide-in-from-top-2 duration-200 max-h-[calc(100vh-72px)] overflow-y-auto">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-white/90">Settings</h3>
             <button onClick={() => setShowSettings(false)} className="p-1 hover:bg-white/5 rounded-lg transition-colors">
