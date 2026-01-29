@@ -418,7 +418,9 @@ fn main() {
             #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
-                app.deep_link().register_all()?;
+                if let Err(err) = app.deep_link().register_all() {
+                    eprintln!("Deep link registration failed: {err}");
+                }
             }
 
             app.manage(AppState {
