@@ -271,6 +271,7 @@ export function DeployModal({ open, onOpenChange, agent, tools }: DeployModalPro
         return [
           "Open the .dmg and drag AgentForge Runner to Applications.",
           "Open AgentForge Runner once from Applications (this completes setup).",
+          "If macOS blocks it, right-click the app and choose Open once.",
           "Come back here and click Download & Open again.",
         ];
       case "windows":

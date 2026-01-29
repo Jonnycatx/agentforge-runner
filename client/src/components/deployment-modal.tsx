@@ -324,7 +324,7 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
                           </Button>
                         </a>
                         <p className="text-xs text-muted-foreground px-1">
-                          {detectedOS === "mac" ? "Open the .dmg → Drag to Applications → Double-click to run" : 
+                          {detectedOS === "mac" ? "Open the .dmg → Drag to Applications → Right-click Open once" : 
                            detectedOS === "windows" ? "Run the installer → Launch from Start Menu" :
                            "Make executable (chmod +x) → Double-click to run"}
                         </p>
