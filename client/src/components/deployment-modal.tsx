@@ -191,13 +191,13 @@ export function DeploymentModal({ open, onOpenChange }: DeploymentModalProps) {
   };
 
   const GITHUB_REPO = "Jonnycatx/agentforge-runner";
-  
+  const RUNNER_VERSION = "2.1.8";
   const getRunnerDownloadUrl = () => {
     const baseUrl = `https://github.com/${GITHUB_REPO}/releases/latest/download`;
     switch (detectedOS) {
-      case "mac": return `${baseUrl}/AgentForge-Runner_universal.dmg`;
-      case "windows": return `${baseUrl}/AgentForge-Runner_x64-setup.exe`;
-      case "linux": return `${baseUrl}/AgentForge-Runner_amd64.AppImage`;
+      case "mac": return `${baseUrl}/AgentForge.Runner_${RUNNER_VERSION}_aarch64.dmg`;
+      case "windows": return `${baseUrl}/AgentForge.Runner_${RUNNER_VERSION}_x64-setup.exe`;
+      case "linux": return `${baseUrl}/AgentForge.Runner_${RUNNER_VERSION}_amd64.AppImage`;
       default: return `https://github.com/${GITHUB_REPO}/releases`;
     }
   };
